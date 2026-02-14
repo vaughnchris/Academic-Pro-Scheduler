@@ -25,6 +25,21 @@ The application serves two primary user roles:
     *   **Verification Dashboard:** Track which faculty have accepted or rejected their assigned schedules.
     *   **Communication:** Send automated email reminders for requests and schedule reviews.
 
+## Key Features
+
+*   **Role-Based Access:** Distinct interfaces for Faculty and Admins.
+*   **Interactive Dashboard:** A dynamic schedule table for admins to visualize and edit class sections.
+*   **Faculty Request Form:** A user-friendly form for faculty to submit detailed teaching preferences.
+*   **Request Tracking:** Visual indicators and lists to track which faculty members have submitted their requests.
+*   **Schedule Verification:** A dedicated workflow for faculty to review, accept, or reject their final assigned schedule.
+*   **Smart Assistant:** AI-powered features to assist with scheduling decisions.
+*   **Conflict Management:** Tools to identify and resolve scheduling conflicts (e.g., room double-bookings).
+*   **Email Integration:** Built-in functionality to send individual or bulk reminders to faculty.
+*   **Customizable Settings:** Admin panel to manage courses, instructors, rooms, time blocks, and email templates.
+*   **Master Admin Settings:** Global configuration for institution details and active terms.
+*   **Data Visualization:** Charts and metrics to monitor staffing levels and request status.
+
+## Getting Started
 
 1.  Install dependencies:
     ```bash
