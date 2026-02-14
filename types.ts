@@ -99,6 +99,12 @@ export interface PartitionedItem {
   value: string;
 }
 
+// New type for global lists (Institution Level)
+export interface GlobalOption {
+  id: string;
+  value: string;
+}
+
 export interface EmailSettings {
   individualSubject: string;
   individualBody: string;

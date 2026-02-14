@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { INITIAL_SCHEDULE, MOCK_REQUESTS, INITIAL_COURSES, INITIAL_MODALITIES, INITIAL_CAMPUSES, INITIAL_ROOMS, INITIAL_INSTRUCTORS, TIME_BLOCKS, DEPARTMENTS } from './services/mockData';
-import { ClassSection, FacultyRequest, CourseOption, Instructor, EmailSettings, Department, PartitionedItem, SchoolConfig } from './types';
+import { ClassSection, FacultyRequest, CourseOption, Instructor, EmailSettings, Department, PartitionedItem, SchoolConfig, GlobalOption } from './types';
 import Dashboard from './components/Dashboard';
 import FacultyForm from './components/FacultyForm';
 import AdminSettings from './components/AdminSettings';
@@ -42,9 +42,11 @@ const App: React.FC = () => {
   const [allCourses, setAllCourses] = useState<CourseOption[]>(INITIAL_COURSES);
   const [allInstructors, setAllInstructors] = useState<Instructor[]>(INITIAL_INSTRUCTORS);
   
-  // Partitioned items (Rooms, Modalities, TimeBlocks, Campuses)
-  const [allModalities, setAllModalities] = useState<PartitionedItem[]>(INITIAL_MODALITIES);
-  const [allCampuses, setAllCampuses] = useState<PartitionedItem[]>(INITIAL_CAMPUSES);
+  // Institution-Wide Global Lists (No department partitioning)
+  const [globalModalities, setGlobalModalities] = useState<GlobalOption[]>(INITIAL_MODALITIES);
+  const [globalCampuses, setGlobalCampuses] = useState<GlobalOption[]>(INITIAL_CAMPUSES);
+
+  // Partitioned items (Rooms, TimeBlocks)
   const [allRooms, setAllRooms] = useState<PartitionedItem[]>(INITIAL_ROOMS);
   const [allTimeBlocks, setAllTimeBlocks] = useState<PartitionedItem[]>(TIME_BLOCKS);
 
@@ -59,8 +61,10 @@ const App: React.FC = () => {
   // Derived simple arrays for child components that expect string[]
   const rooms = useMemo(() => allRooms.filter(r => r.departmentId === activeDeptId).map(r => r.value), [allRooms, activeDeptId]);
   const timeBlocks = useMemo(() => allTimeBlocks.filter(t => t.departmentId === activeDeptId).map(t => t.value), [allTimeBlocks, activeDeptId]);
-  const modalities = useMemo(() => allModalities.filter(m => m.departmentId === activeDeptId).map(m => m.value), [allModalities, activeDeptId]);
-  const campuses = useMemo(() => allCampuses.filter(c => c.departmentId === activeDeptId).map(c => c.value), [allCampuses, activeDeptId]);
+  
+  // Global lists as string arrays for dropdowns
+  const modalities = useMemo(() => globalModalities.map(m => m.value), [globalModalities]);
+  const campuses = useMemo(() => globalCampuses.map(c => c.value), [globalCampuses]);
 
   // Current logged in instructor object
   const currentInstructor = useMemo(() => instructors.find(i => i.id === currentFacultyId), [instructors, currentFacultyId]);
@@ -291,6 +295,21 @@ const App: React.FC = () => {
       setAllRooms(prev => prev.map(r => (r.departmentId === activeDeptId && r.value === oldVal) ? { ...r, value: newVal } : r));
       // 2. Update Schedule references
       setAllSchedule(prev => prev.map(s => (s.departmentId === activeDeptId && s.room === oldVal) ? { ...s, room: newVal } : s));
+  };
+
+  // --- Global Lists Management (Master Admin) ---
+  const handleAddGlobalModality = (val: string) => {
+      setGlobalModalities(prev => [...prev, { id: crypto.randomUUID(), value: val }]);
+  };
+  const handleRemoveGlobalModality = (id: string) => {
+      setGlobalModalities(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleAddGlobalCampus = (val: string) => {
+      setGlobalCampuses(prev => [...prev, { id: crypto.randomUUID(), value: val }]);
+  };
+  const handleRemoveGlobalCampus = (id: string) => {
+      setGlobalCampuses(prev => prev.filter(c => c.id !== id));
   };
 
 
@@ -675,15 +694,8 @@ const App: React.FC = () => {
                 onAddCourse={handleAddCourse}
                 onRemoveCourse={handleRemoveCourse}
                 
-                // Partitioned Items
-                modalities={modalities} 
-                onAddModality={(val) => addPartitionedItem(setAllModalities, val)}
-                onRemoveModality={(val) => removePartitionedItem(setAllModalities, val)}
+                // Modalities/Campuses Removed from Admin Settings (Managed Globally)
                 
-                campuses={campuses} 
-                onAddCampus={(val) => addPartitionedItem(setAllCampuses, val)}
-                onRemoveCampus={(val) => removePartitionedItem(setAllCampuses, val)}
-
                 rooms={rooms} 
                 onAddRoom={(val) => addPartitionedItem(setAllRooms, val)}
                 onRemoveRoom={(val) => removePartitionedItem(setAllRooms, val)}
@@ -711,6 +723,12 @@ const App: React.FC = () => {
             <MasterAdminSettings 
                 config={schoolConfig}
                 onUpdate={setSchoolConfig}
+                modalities={globalModalities}
+                onAddModality={handleAddGlobalModality}
+                onRemoveModality={handleRemoveGlobalModality}
+                campuses={globalCampuses}
+                onAddCampus={handleAddGlobalCampus}
+                onRemoveCampus={handleRemoveGlobalCampus}
             />
         )}
 

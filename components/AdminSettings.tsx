@@ -1,21 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ClassSection, CourseOption, Instructor, EmailSettings } from '../types';
-import { Trash2, Plus, Settings, UserPlus, Edit2, Clock, Mail, Check, X, Calendar, GripVertical } from 'lucide-react';
+import { Trash2, Plus, Settings, UserPlus, Edit2, Clock, Mail, Check, X, GripVertical } from 'lucide-react';
+import { parseTimeMinutes } from '../utils/schedulerUtils';
 
 interface Props {
-  // scheduleTitle removed here, controlled by Master Admin
+  // Global settings like scheduleTitle removed
   courses: CourseOption[];
   onAddCourse: (code: string, title: string) => void;
   onRemoveCourse: (id: string) => void;
   
-  modalities: string[];
-  onAddModality: (val: string) => void;
-  onRemoveModality: (val: string) => void;
-
-  campuses: string[];
-  onAddCampus: (val: string) => void;
-  onRemoveCampus: (val: string) => void;
+  // Modalities and Campuses removed from here (Managed Globally)
 
   rooms: string[];
   onAddRoom: (val: string) => void;
@@ -31,15 +26,13 @@ interface Props {
   onAddTimeBlock: (val: string) => void;
   onRemoveTimeBlock: (val: string) => void;
 
-  schedule: ClassSection[]; // Just for visual reference if needed, though room update handles schedule internally in App
+  schedule: ClassSection[]; 
   emailSettings: EmailSettings;
   setEmailSettings: React.Dispatch<React.SetStateAction<EmailSettings>>;
 }
 
 const AdminSettings: React.FC<Props> = ({ 
   courses, onAddCourse, onRemoveCourse,
-  modalities, onAddModality, onRemoveModality,
-  campuses, onAddCampus, onRemoveCampus,
   rooms, onAddRoom, onRemoveRoom, onUpdateRoom,
   instructors, onAddInstructor, onUpdateInstructor, onRemoveInstructor,
   timeBlocks, onAddTimeBlock, onRemoveTimeBlock,
@@ -47,8 +40,6 @@ const AdminSettings: React.FC<Props> = ({
 }) => {
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newCourseTitle, setNewCourseTitle] = useState('');
-  const [newModality, setNewModality] = useState('');
-  const [newCampus, setNewCampus] = useState('');
   const [newRoom, setNewRoom] = useState('');
   
   // Time Block State
@@ -69,25 +60,39 @@ const AdminSettings: React.FC<Props> = ({
   // Instructor Drag State
   const [draggedInstructorId, setDraggedInstructorId] = useState<string | null>(null);
 
+  // Sorting Lists for Display
+  const sortedInstructors = useMemo(() => {
+    return [...instructors].sort((a, b) => {
+        // Primary Sort: Seniority (if exists)
+        if ((a.seniority || 99) !== (b.seniority || 99)) {
+            return (a.seniority || 99) - (b.seniority || 99);
+        }
+        // Secondary Sort: Name
+        return a.name.localeCompare(b.name);
+    });
+  }, [instructors]);
+
+  const sortedCourses = useMemo(() => {
+    return [...courses].sort((a, b) => a.code.localeCompare(b.code));
+  }, [courses]);
+
+  const sortedRooms = useMemo(() => {
+    return [...rooms].sort((a, b) => a.localeCompare(b));
+  }, [rooms]);
+
+  const sortedTimeBlocks = useMemo(() => {
+    return [...timeBlocks].sort((a, b) => {
+        const startA = a.split(' - ')[0];
+        const startB = b.split(' - ')[0];
+        return parseTimeMinutes(startA) - parseTimeMinutes(startB);
+    });
+  }, [timeBlocks]);
+
   const addCourse = () => {
     if (newCourseCode && newCourseTitle) {
       onAddCourse(newCourseCode, newCourseTitle);
       setNewCourseCode('');
       setNewCourseTitle('');
-    }
-  };
-
-  const addModality = () => {
-    if (newModality && !modalities.includes(newModality)) {
-      onAddModality(newModality);
-      setNewModality('');
-    }
-  };
-
-  const addCampus = () => {
-    if (newCampus && !campuses.includes(newCampus)) {
-      onAddCampus(newCampus);
-      setNewCampus('');
     }
   };
 
@@ -207,7 +212,7 @@ const AdminSettings: React.FC<Props> = ({
   };
 
   const removeInstructor = (id: string) => {
-      if (confirm('Are you sure you want to remove this instructor?')) {
+      if (confirm('Are you sure you want to remove this faculty member?')) {
         onRemoveInstructor(id);
         if (editingInstructorId === id) cancelEditInstructor();
       }
@@ -227,8 +232,8 @@ const AdminSettings: React.FC<Props> = ({
     e.preventDefault();
     if (!draggedInstructorId || draggedInstructorId === targetId) return;
 
-    // Get current list sorted
-    const currentList = [...instructors].sort((a,b) => (a.seniority || 99) - (b.seniority || 99));
+    // Use sorted list for reordering logic based on rank
+    const currentList = [...sortedInstructors];
     
     const dragIndex = currentList.findIndex(i => i.id === draggedInstructorId);
     const targetIndex = currentList.findIndex(i => i.id === targetId);
@@ -260,12 +265,12 @@ const AdminSettings: React.FC<Props> = ({
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         
-        {/* Manage Instructors */}
+        {/* Manage Faculty */}
         <div className="bg-white p-6 rounded-lg shadow border border-gray-200 col-span-1 md:col-span-2 lg:col-span-2">
             <h2 className="text-xl font-semibold mb-4 text-blue-900 border-b pb-2 flex items-center justify-between">
                 <div className="flex items-center">
                     <UserPlus className="w-5 h-5 mr-2" />
-                    Manage Instructors
+                    Manage Faculty
                 </div>
                 {editingInstructorId && (
                     <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium">
@@ -342,7 +347,7 @@ const AdminSettings: React.FC<Props> = ({
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {instructors.sort((a,b) => (a.seniority || 99) - (b.seniority || 99)).map(inst => (
+                        {sortedInstructors.map(inst => (
                             <tr 
                                 key={inst.id} 
                                 className={`${editingInstructorId === inst.id ? 'bg-blue-50' : 'hover:bg-gray-50'} ${draggedInstructorId === inst.id ? 'opacity-50' : ''}`}
@@ -369,14 +374,14 @@ const AdminSettings: React.FC<Props> = ({
                                         <button 
                                             onClick={() => startEditInstructor(inst)} 
                                             className="text-blue-400 hover:text-blue-600 p-1 rounded hover:bg-blue-100"
-                                            title="Edit Instructor"
+                                            title="Edit Faculty"
                                         >
                                             <Edit2 className="w-4 h-4" />
                                         </button>
                                         <button 
-                                            onClick={() => onRemoveInstructor(inst.id)} 
+                                            onClick={() => removeInstructor(inst.id)} 
                                             className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-100"
-                                            title="Delete Instructor"
+                                            title="Delete Faculty"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
@@ -413,7 +418,7 @@ const AdminSettings: React.FC<Props> = ({
             </button>
           </div>
           <div className="h-64 overflow-y-auto space-y-2 pr-2">
-            {courses.map(course => (
+            {sortedCourses.map(course => (
               <div key={course.id} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
                 <div>
                   <span className="font-bold text-sm text-gray-700">{course.code}</span>
@@ -459,7 +464,7 @@ const AdminSettings: React.FC<Props> = ({
             </button>
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {timeBlocks.map(tb => (
+            {sortedTimeBlocks.map(tb => (
               <div key={tb} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
                 <span className="text-sm text-gray-700">{tb}</span>
                 <button onClick={() => onRemoveTimeBlock(tb)} className="text-red-400 hover:text-red-600">
@@ -486,7 +491,7 @@ const AdminSettings: React.FC<Props> = ({
             </button>
           </div>
           <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {rooms.map(room => (
+            {sortedRooms.map(room => (
               <li key={room} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 group min-h-[42px]">
                 {editingRoom === room ? (
                     <div className="flex items-center flex-1 space-x-2 animate-in fade-in duration-200">
@@ -525,63 +530,8 @@ const AdminSettings: React.FC<Props> = ({
             ))}
           </ul>
         </div>
-
-        {/* Manage Modalities & Campuses */}
-        <div className="space-y-8 col-span-1 md:col-span-2 lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4 text-blue-900 border-b pb-2">Manage Modalities</h2>
-            <div className="flex space-x-2 mb-4">
-                <input 
-                type="text" 
-                placeholder="New Modality" 
-                value={newModality}
-                onChange={e => setNewModality(e.target.value)}
-                className="flex-1 border p-2 rounded text-sm bg-white text-gray-900 placeholder-gray-500"
-                />
-                <button onClick={addModality} className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-                <Plus className="w-5 h-5" />
-                </button>
-            </div>
-            <ul className="space-y-2">
-                {modalities.map(mod => (
-                <li key={mod} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
-                    <span className="text-sm text-gray-700">{mod}</span>
-                    <button onClick={() => onRemoveModality(mod)} className="text-red-400 hover:text-red-600">
-                    <Trash2 className="w-4 h-4" />
-                    </button>
-                </li>
-                ))}
-            </ul>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4 text-blue-900 border-b pb-2">Manage Campuses</h2>
-            <div className="flex space-x-2 mb-4">
-                <input 
-                type="text" 
-                placeholder="New Campus" 
-                value={newCampus}
-                onChange={e => setNewCampus(e.target.value)}
-                className="flex-1 border p-2 rounded text-sm bg-white text-gray-900 placeholder-gray-500"
-                />
-                <button onClick={addCampus} className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-                <Plus className="w-5 h-5" />
-                </button>
-            </div>
-            <ul className="space-y-2">
-                {campuses.map(camp => (
-                <li key={camp} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
-                    <span className="text-sm text-gray-700">{camp}</span>
-                    <button onClick={() => onRemoveCampus(camp)} className="text-red-400 hover:text-red-600">
-                    <Trash2 className="w-4 h-4" />
-                    </button>
-                </li>
-                ))}
-            </ul>
-            </div>
-        </div>
-
-        {/* Email Reminder Settings */}
+        
+        {/* Email Settings - kept here as per structure */}
         <div className="bg-white p-6 rounded-lg shadow border border-gray-200 col-span-1 md:col-span-2 lg:col-span-3">
             <h2 className="text-xl font-semibold mb-4 text-blue-900 border-b pb-2 flex items-center">
                 <Mail className="w-5 h-5 mr-2" />

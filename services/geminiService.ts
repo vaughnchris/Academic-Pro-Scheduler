@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { ClassSection, FacultyRequest } from "../types";
 
 // Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'YOUR_API_KEY_HERE' });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const askScheduleAssistant = async (
   question: string,

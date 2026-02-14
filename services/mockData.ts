@@ -1,5 +1,5 @@
 
-import { ClassSection, FacultyRequest, SectionStatus, CourseOption, Instructor, Department, PartitionedItem } from '../types';
+import { ClassSection, FacultyRequest, SectionStatus, CourseOption, Instructor, Department, PartitionedItem, GlobalOption } from '../types';
 
 export const DEPARTMENTS: Department[] = [];
 
@@ -12,9 +12,9 @@ export const MOCK_REQUESTS: FacultyRequest[] = [];
 
 export const INITIAL_COURSES: CourseOption[] = [];
 
-export const INITIAL_MODALITIES: PartitionedItem[] = [];
+export const INITIAL_MODALITIES: GlobalOption[] = [];
 
-export const INITIAL_CAMPUSES: PartitionedItem[] = [];
+export const INITIAL_CAMPUSES: GlobalOption[] = [];
 
 export const INITIAL_ROOMS: PartitionedItem[] = [];
 
