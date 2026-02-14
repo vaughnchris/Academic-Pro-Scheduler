@@ -16,7 +16,6 @@ The application serves two primary user roles:
     *   **Review & Verify:** View their assigned schedule after the draft is published.
     *   **Accept/Reject:** Formally accept their schedule or reject it with comments for the admin.
 
-**Prerequisites:**  Node.js
 2.  **Department Schedule Developers (Admins):**
     *   View a comprehensive dashboard of the master schedule.
     *   Manage course offerings, sections, rooms, and instructors.
@@ -27,8 +26,17 @@ The application serves two primary user roles:
     *   **Communication:** Send automated email reminders for requests and schedule reviews.
 
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+2.  Run the development server:
+    ```bash
+    npm run dev
+    ```
+
+3.  Build for production:
+    ```bash
+    npm run build
+    ```
