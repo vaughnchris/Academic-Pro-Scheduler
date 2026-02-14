@@ -1,16 +1,30 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Academic Scheduler Pro
 
-# Run and deploy your AI Studio app
+A comprehensive scheduling tool for Department Schedule Developers to match faculty requests with semester course schedules.
 
-This contains everything you need to run your app locally.
+## Overview
 
-View your app in AI Studio: https://ai.studio/apps/drive/1_ldhcO55VFK6IhKJCbwus1o3yi_Xlx2l
+Academic Scheduler Pro is a web-based application designed to streamline the academic scheduling process for university departments. It facilitates communication between faculty members and schedule developers, allowing for efficient collection of teaching preferences and management of the master schedule.
 
-## Run Locally
+The application serves two primary user roles:
+
+1.  **Faculty Members:**
+    *   Access a dedicated portal to submit teaching preferences for the upcoming semester.
+    *   Specify desired course load, preferred courses, days, times, and modalities.
+    *   Indicate willingness to teach in different formats (Live, Online, Hybrid).
+    *   Provide special instructions or constraints.
+    *   **Review & Verify:** View their assigned schedule after the draft is published.
+    *   **Accept/Reject:** Formally accept their schedule or reject it with comments for the admin.
 
 **Prerequisites:**  Node.js
+2.  **Department Schedule Developers (Admins):**
+    *   View a comprehensive dashboard of the master schedule.
+    *   Manage course offerings, sections, rooms, and instructors.
+    *   Review and track faculty requests in real-time.
+    *   Assign faculty to course sections based on preferences and availability.
+    *   Utilize AI assistance for scheduling suggestions.
+    *   **Verification Dashboard:** Track which faculty have accepted or rejected their assigned schedules.
+    *   **Communication:** Send automated email reminders for requests and schedule reviews.
 
 
 1. Install dependencies:
