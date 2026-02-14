@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
 import { Users, ShieldCheck, BookOpen, Calendar, Building, PlusCircle } from 'lucide-react';
-import { Department } from '../types';
+import { Department, SchoolConfig } from '../types';
 
 interface Props {
   scheduleTitle: string;
   departments: Department[];
+  schoolConfig?: SchoolConfig; // Make optional for type safety if needed, though App will pass it
   onSelectRole: (role: 'admin' | 'faculty', deptId: string) => void;
   onCreateDepartment: (name: string) => void;
 }
 
-const LandingPage: React.FC<Props> = ({ scheduleTitle, departments, onSelectRole, onCreateDepartment }) => {
+const LandingPage: React.FC<Props> = ({ scheduleTitle, departments, schoolConfig, onSelectRole, onCreateDepartment }) => {
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
@@ -32,11 +33,12 @@ const LandingPage: React.FC<Props> = ({ scheduleTitle, departments, onSelectRole
                 <Calendar className="w-12 h-12 text-blue-300" />
             </div>
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-          Academic<span className="text-blue-400">Pro</span> Scheduler
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2">
+          {schoolConfig ? schoolConfig.schoolName : 'AcademicPro Scheduler'}
         </h1>
+        <p className="text-xl text-blue-300 font-medium mb-2">{scheduleTitle}</p>
         <p className="text-lg text-blue-200 max-w-2xl mx-auto">
-          Department Scheduling System • {scheduleTitle} Scheduling Cycle
+          Department Scheduling System
         </p>
       </div>
 
@@ -123,8 +125,10 @@ const LandingPage: React.FC<Props> = ({ scheduleTitle, departments, onSelectRole
       )}
 
       <div className="mt-16 text-center text-sm text-gray-400">
-        <div>&copy; 2025 AcademicPro Scheduling Systems. All rights reserved.</div>
-        <div className="mt-1">Contact: professorvaughn@icloud.com</div>
+        <div>&copy; {new Date().getFullYear()} {schoolConfig ? schoolConfig.schoolName : 'AcademicPro'} Scheduling Systems. All rights reserved.</div>
+        {schoolConfig && (
+            <div className="mt-1">Technical Support: <a href={`mailto:${schoolConfig.helpContactEmail}`} className="text-blue-400 hover:text-blue-300">{schoolConfig.helpContactEmail}</a> ({schoolConfig.helpContactName})</div>
+        )}
       </div>
     </div>
   );

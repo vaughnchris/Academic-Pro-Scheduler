@@ -1,12 +1,10 @@
 
 import React, { useState } from 'react';
 import { ClassSection, CourseOption, Instructor, EmailSettings } from '../types';
-import { Trash2, Plus, Settings, UserPlus, Edit2, Clock, Mail, Check, X, RotateCcw, Calendar } from 'lucide-react';
+import { Trash2, Plus, Settings, UserPlus, Edit2, Clock, Mail, Check, X, Calendar, GripVertical } from 'lucide-react';
 
 interface Props {
-  scheduleTitle: string;
-  onUpdateScheduleTitle: (title: string) => void;
-
+  // scheduleTitle removed here, controlled by Master Admin
   courses: CourseOption[];
   onAddCourse: (code: string, title: string) => void;
   onRemoveCourse: (id: string) => void;
@@ -39,7 +37,6 @@ interface Props {
 }
 
 const AdminSettings: React.FC<Props> = ({ 
-  scheduleTitle, onUpdateScheduleTitle,
   courses, onAddCourse, onRemoveCourse,
   modalities, onAddModality, onRemoveModality,
   campuses, onAddCampus, onRemoveCampus,
@@ -68,6 +65,9 @@ const AdminSettings: React.FC<Props> = ({
   const [newInstEmail, setNewInstEmail] = useState('');
   const [newInstSeniority, setNewInstSeniority] = useState<number | ''>('');
   const [newInstType, setNewInstType] = useState<'Full-Time' | 'Part-Time'>('Full-Time');
+
+  // Instructor Drag State
+  const [draggedInstructorId, setDraggedInstructorId] = useState<string | null>(null);
 
   const addCourse = () => {
     if (newCourseCode && newCourseTitle) {
@@ -212,37 +212,54 @@ const AdminSettings: React.FC<Props> = ({
         if (editingInstructorId === id) cancelEditInstructor();
       }
   };
+  
+  // Drag and Drop Logic for Instructors
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedInstructorId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedInstructorId || draggedInstructorId === targetId) return;
+
+    // Get current list sorted
+    const currentList = [...instructors].sort((a,b) => (a.seniority || 99) - (b.seniority || 99));
+    
+    const dragIndex = currentList.findIndex(i => i.id === draggedInstructorId);
+    const targetIndex = currentList.findIndex(i => i.id === targetId);
+
+    if (dragIndex === -1 || targetIndex === -1) return;
+
+    // Reorder
+    const item = currentList[dragIndex];
+    currentList.splice(dragIndex, 1);
+    currentList.splice(targetIndex, 0, item);
+
+    // Update rank/seniority based on new index
+    currentList.forEach((inst, index) => {
+        const newRank = index + 1;
+        if (inst.seniority !== newRank) {
+            onUpdateInstructor(inst.id, { seniority: newRank });
+        }
+    });
+
+    setDraggedInstructorId(null);
+  };
 
   return (
     <div className="w-full p-4">
       <div className="mb-8 flex items-center">
         <Settings className="w-8 h-8 text-gray-700 mr-3" />
-        <h1 className="text-3xl font-bold text-gray-800">Admin Settings</h1>
+        <h1 className="text-3xl font-bold text-gray-800">Department Settings</h1>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         
-        {/* General Configuration */}
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200 col-span-1 md:col-span-2 lg:col-span-3">
-             <h2 className="text-xl font-semibold mb-4 text-blue-900 border-b pb-2 flex items-center">
-                <Calendar className="w-5 h-5 mr-2" />
-                General Configuration
-             </h2>
-             <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Academic Term / Schedule Title</label>
-                <div className="flex gap-2">
-                    <input 
-                        type="text" 
-                        value={scheduleTitle}
-                        onChange={(e) => onUpdateScheduleTitle(e.target.value)}
-                        className="flex-1 border p-2 rounded text-sm bg-white text-gray-900 placeholder-gray-500"
-                        placeholder="e.g. Fall 2026"
-                    />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">This title will appear on the landing page, dashboard, and faculty forms.</p>
-             </div>
-        </div>
-
         {/* Manage Instructors */}
         <div className="bg-white p-6 rounded-lg shadow border border-gray-200 col-span-1 md:col-span-2 lg:col-span-2">
             <h2 className="text-xl font-semibold mb-4 text-blue-900 border-b pb-2 flex items-center justify-between">
@@ -316,6 +333,7 @@ const AdminSettings: React.FC<Props> = ({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50 sticky top-0">
                         <tr>
+                            <th className="px-2 py-2 w-8"></th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-16">Rank</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
@@ -325,7 +343,17 @@ const AdminSettings: React.FC<Props> = ({
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {instructors.sort((a,b) => (a.seniority || 99) - (b.seniority || 99)).map(inst => (
-                            <tr key={inst.id} className={editingInstructorId === inst.id ? 'bg-blue-50' : 'hover:bg-gray-50'}>
+                            <tr 
+                                key={inst.id} 
+                                className={`${editingInstructorId === inst.id ? 'bg-blue-50' : 'hover:bg-gray-50'} ${draggedInstructorId === inst.id ? 'opacity-50' : ''}`}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, inst.id)}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDrop(e, inst.id)}
+                            >
+                                <td className="px-2 py-2 cursor-move text-gray-400">
+                                    <GripVertical className="w-4 h-4" />
+                                </td>
                                 <td className="px-4 py-2 whitespace-nowrap text-sm font-bold text-gray-600">
                                     {inst.seniority ? `#${inst.seniority}` : '-'}
                                 </td>

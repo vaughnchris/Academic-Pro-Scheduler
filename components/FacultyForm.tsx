@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { FacultyRequest, PreferenceRow, CourseOption, Instructor } from '../types';
-import { Plus, Trash2, Send, Info } from 'lucide-react';
+import { Send, Info, X, Save } from 'lucide-react';
 import MultiSelect from './MultiSelect';
 import { DAYS_OF_WEEK } from '../services/mockData';
 
@@ -14,15 +14,51 @@ interface Props {
   availableCampuses: string[];
   instructors: Instructor[];
   availableTimes: string[];
+  initialValues?: FacultyRequest;
+  onCancel?: () => void;
+  isAdminMode?: boolean;
 }
 
-const FacultyForm: React.FC<Props> = ({ departmentId, scheduleTitle, onSubmit, availableCourses, availableModalities, availableCampuses, instructors, availableTimes }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [load, setLoad] = useState<number>(0);
-  const [preferences, setPreferences] = useState<PreferenceRow[]>(
-    Array.from({ length: 7 }, (_, i) => ({
+const FacultyForm: React.FC<Props> = ({ 
+  departmentId, 
+  scheduleTitle, 
+  onSubmit, 
+  availableCourses, 
+  availableModalities, 
+  availableCampuses, 
+  instructors, 
+  availableTimes,
+  initialValues,
+  onCancel,
+  isAdminMode
+}) => {
+  const [name, setName] = useState(initialValues?.name || '');
+  const [email, setEmail] = useState(initialValues?.email || '');
+  const [phone, setPhone] = useState(initialValues?.contactNumber || '');
+  const [load, setLoad] = useState<number>(initialValues?.loadDesired || 0);
+  
+  // Initialize preferences with padding up to 7 rows if needed, or use existing
+  const [preferences, setPreferences] = useState<PreferenceRow[]>(() => {
+    if (initialValues?.preferences) {
+        const existing = initialValues.preferences;
+        const padded = [...existing];
+        // Fill up to 7 to maintain UI consistency if desired, or just keep what we have
+        for (let i = existing.length; i < 7; i++) {
+            padded.push({
+                rank: i + 1,
+                classTitle: '',
+                daysAvailable: [],
+                timesAvailable: [],
+                campus: '',
+                modality: '',
+                notes: '',
+                sameAsLastYear: false,
+                textbookCost: 'Regular Cost'
+            });
+        }
+        return padded;
+    }
+    return Array.from({ length: 7 }, (_, i) => ({
       rank: i + 1,
       classTitle: '',
       daysAvailable: [],
@@ -32,11 +68,12 @@ const FacultyForm: React.FC<Props> = ({ departmentId, scheduleTitle, onSubmit, a
       notes: '',
       sameAsLastYear: false,
       textbookCost: 'Regular Cost'
-    }))
-  );
-  const [certified, setCertified] = useState<boolean>(false);
-  const [willingness, setWillingness] = useState({ live: false, online: false, hybrid: false });
-  const [instructions, setInstructions] = useState('');
+    }));
+  });
+
+  const [certified, setCertified] = useState<boolean>(initialValues?.certifiedOnline ?? false);
+  const [willingness, setWillingness] = useState(initialValues?.willingToTeach || { live: false, online: false, hybrid: false });
+  const [instructions, setInstructions] = useState(initialValues?.specialInstructions || '');
 
   const handleInstructorChange = (selectedName: string) => {
       setName(selectedName);
@@ -64,7 +101,7 @@ const FacultyForm: React.FC<Props> = ({ departmentId, scheduleTitle, onSubmit, a
     const cleanPrefs = preferences.filter(p => p.classTitle.trim() !== '');
     
     const request: FacultyRequest = {
-      id: crypto.randomUUID(),
+      id: initialValues?.id || crypto.randomUUID(),
       departmentId,
       name,
       email,
@@ -74,19 +111,29 @@ const FacultyForm: React.FC<Props> = ({ departmentId, scheduleTitle, onSubmit, a
       certifiedOnline: certified,
       willingToTeach: willingness,
       specialInstructions: instructions,
-      submittedAt: new Date().toISOString()
+      submittedAt: initialValues?.submittedAt || new Date().toISOString()
     };
     
     onSubmit(request);
-    alert("Request submitted successfully!");
-    // Reset could go here
+    if (!initialValues && !isAdminMode) {
+         alert("Request submitted successfully!");
+    }
   };
 
   return (
     <div className="w-full bg-white p-8 shadow-lg rounded-lg border border-gray-200">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Faculty Schedule Request</h1>
-        <h2 className="text-xl text-gray-600 mt-2">School of Business and Computing - {scheduleTitle}</h2>
+      <div className="flex justify-between items-start mb-8">
+        <div className="text-center flex-1">
+            <h1 className="text-3xl font-bold text-gray-800">
+                {isAdminMode && initialValues ? 'Edit Faculty Request' : isAdminMode ? 'Add New Faculty Request' : 'Faculty Schedule Request'}
+            </h1>
+            <h2 className="text-xl text-gray-600 mt-2">School of Business and Computing - {scheduleTitle}</h2>
+        </div>
+        {onCancel && (
+            <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+            </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -138,10 +185,12 @@ const FacultyForm: React.FC<Props> = ({ departmentId, scheduleTitle, onSubmit, a
         <div className="overflow-visible pb-24 overflow-x-auto">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 gap-2">
             <p className="text-sm text-gray-600">List the classes you prefer to teach in order of preference.</p>
-            <div className="flex items-center text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded-md border border-blue-100">
-                <Info className="w-4 h-4 mr-2 flex-shrink-0" />
-                <span><strong>Tip:</strong> If you wish to teach multiple sections of the same course, please list that course multiple times in separate rows.</span>
-            </div>
+            {!isAdminMode && (
+                <div className="flex items-center text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded-md border border-blue-100">
+                    <Info className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span><strong>Tip:</strong> If you wish to teach multiple sections of the same course, please list that course multiple times in separate rows.</span>
+                </div>
+            )}
           </div>
           <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
             <thead className="bg-gray-100">
@@ -304,10 +353,15 @@ const FacultyForm: React.FC<Props> = ({ departmentId, scheduleTitle, onSubmit, a
           />
         </div>
 
-        <div className="flex justify-end">
-          <button type="submit" className="flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition">
-            <Send className="w-5 h-5 mr-2" />
-            Submit Request
+        <div className="flex justify-end space-x-3">
+          {onCancel && (
+              <button type="button" onClick={onCancel} className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                  Cancel
+              </button>
+          )}
+          <button type="submit" className={`flex items-center px-6 py-3 text-white font-medium rounded-lg transition ${isAdminMode ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-700 hover:bg-blue-800'}`}>
+            {isAdminMode ? <Save className="w-5 h-5 mr-2" /> : <Send className="w-5 h-5 mr-2" />}
+            {isAdminMode ? (initialValues ? 'Update Request' : 'Save Request') : 'Submit Request'}
           </button>
         </div>
       </form>

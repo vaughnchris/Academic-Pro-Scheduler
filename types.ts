@@ -4,8 +4,11 @@ export enum SectionStatus {
   KEEP = 'Keep',     // White/Green
   CHANGE = 'Change', // Light Green
   DELETE = 'Delete', // Yellow/Gold
-  NEW = 'New'        // Peach/Orange
+  NEW = 'New',       // Peach/Orange
+  IMPORTED = 'Imported' // Gray (Unconfirmed template)
 }
+
+export type ApprovalStatus = 'Pending' | 'Sent' | 'Approved' | 'Rejected';
 
 export interface Department {
   id: string;
@@ -82,6 +85,11 @@ export interface Instructor {
   type: 'Full-Time' | 'Part-Time';
   seniority?: number; // 1 is highest seniority
   reminderCount?: number;
+  
+  // New fields for Schedule Verification
+  approvalStatus: ApprovalStatus;
+  approvalComment?: string; // Notes/Explanation for rejection
+  approvalDate?: string;
 }
 
 // Helper types for simple lists that now need partitioning
@@ -96,4 +104,11 @@ export interface EmailSettings {
   individualBody: string;
   bulkSubject: string;
   bulkBody: string;
+}
+
+export interface SchoolConfig {
+  schoolName: string;
+  scheduleTitle: string; // "Fall 2026"
+  helpContactName: string;
+  helpContactEmail: string;
 }

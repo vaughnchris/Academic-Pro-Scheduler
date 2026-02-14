@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { FacultyRequest, ClassSection, PreferenceRow, Instructor } from '../types';
-import { ChevronDown, ChevronRight, GripVertical, CheckCircle2, AlertCircle, Eye, X, User, Phone, RotateCcw, CheckCircle, XCircle, Mail, Layers, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { FacultyRequest, ClassSection, PreferenceRow, Instructor, SectionStatus } from '../types';
+import { ChevronDown, ChevronRight, GripVertical, CheckCircle2, AlertCircle, Eye, X, User, Phone, RotateCcw, CheckCircle, XCircle, Mail, Layers, ChevronsDown, ChevronsUp, Check } from 'lucide-react';
 
 interface Props {
   requests: FacultyRequest[];
@@ -31,12 +31,22 @@ const DraggableFacultyList: React.FC<Props> = ({ requests, schedule, instructors
   };
 
   const getAssignedCount = (facultyName: string) => {
-    return schedule.filter(s => s.faculty === facultyName).length;
+    // Count active sections only (exclude Delete and Imported/Unconfirmed)
+    // We want the request to remain "draggable" until the user explicitly confirms the assignment (changing status to KEEP/CHANGE)
+    return schedule.filter(s => 
+        s.faculty === facultyName && 
+        s.status !== SectionStatus.DELETE && 
+        s.status !== SectionStatus.IMPORTED
+    ).length;
   };
 
   const getPreferenceAssignmentCount = (facultyName: string, preferenceTitle: string) => {
     return schedule.filter(section => {
+      // Exclude deleted and imported sections from this count
+      if (section.status === SectionStatus.DELETE || section.status === SectionStatus.IMPORTED) return false;
+      
       if (section.faculty !== facultyName) return false;
+      
       const secTitle = section.title.toLowerCase();
       const prefTitle = preferenceTitle.toLowerCase();
       return secTitle.includes(prefTitle) || prefTitle.includes(secTitle);
@@ -81,28 +91,48 @@ const DraggableFacultyList: React.FC<Props> = ({ requests, schedule, instructors
             const instructor = instructors.find(i => i.name === req.name);
 
             return (
-              <div key={req.id} className="border border-gray-200 rounded-md bg-white overflow-hidden">
-                <div className={`flex items-center justify-between transition-colors ${isOpen ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
+              <div 
+                key={req.id} 
+                className={`border rounded-md overflow-hidden transition-all duration-300 ${
+                    loadMet 
+                    ? 'border-gray-200 bg-gray-100 opacity-75' 
+                    : 'border-gray-200 bg-white shadow-sm hover:shadow'
+                }`}
+              >
+                <div 
+                    className={`flex items-center justify-between transition-colors ${
+                        loadMet 
+                            ? 'bg-gray-100 text-gray-500' 
+                            : isOpen ? 'bg-gray-50' : 'hover:bg-gray-50'
+                    }`}
+                >
                     <button 
                         onClick={() => toggle(req.id)}
                         className="flex-1 flex items-center p-3 text-left focus:outline-none"
                     >
-                        <div className="flex items-center overflow-hidden">
-                        {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />}
-                        <div>
-                            <div className="font-semibold text-sm text-gray-800 truncate flex items-center">
-                                {req.name}
-                                {instructor?.seniority && (
-                                    <span className="ml-2 text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full border border-gray-200 font-mono" title="Seniority Rank">
-                                        #{instructor.seniority}
-                                    </span>
-                                )}
+                        <div className="flex items-center overflow-hidden w-full">
+                            {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                    <div className={`font-semibold text-sm truncate flex items-center ${loadMet ? 'text-gray-500 line-through decoration-gray-400' : 'text-gray-800'}`}>
+                                        {req.name}
+                                        {instructor?.seniority && (
+                                            <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full border font-mono ${loadMet ? 'bg-gray-200 text-gray-500 border-gray-300' : 'bg-gray-100 text-gray-600 border-gray-200'}`} title="Seniority Rank">
+                                                #{instructor.seniority}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {loadMet && (
+                                        <div className="flex items-center text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full ml-2">
+                                            <Check className="w-3 h-3 mr-1" /> Satisfied
+                                        </div>
+                                    )}
+                                </div>
+                                <div className={`text-xs flex items-center space-x-2 ${loadMet ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    <span>Load: {assignedCount}/{req.loadDesired}</span>
+                                    {loadMet && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                                </div>
                             </div>
-                            <div className="text-xs text-gray-500 flex items-center space-x-2">
-                                <span>Load: {assignedCount}/{req.loadDesired}</span>
-                                {loadMet && <CheckCircle2 className="w-3 h-3 text-green-500" />}
-                            </div>
-                        </div>
                         </div>
                     </button>
                     <button 
@@ -115,9 +145,9 @@ const DraggableFacultyList: React.FC<Props> = ({ requests, schedule, instructors
                 </div>
 
                 {isOpen && (
-                  <div className="bg-gray-50 p-2 border-t border-gray-200 space-y-2">
+                  <div className={`p-2 border-t border-gray-200 space-y-2 ${loadMet ? 'bg-gray-100' : 'bg-gray-50'}`}>
                      {req.specialInstructions && (
-                         <div className="text-xs text-gray-600 italic bg-yellow-50 p-2 rounded border border-yellow-100 mb-2">
+                         <div className={`text-xs italic p-2 rounded border mb-2 ${loadMet ? 'text-gray-500 bg-gray-200 border-gray-300' : 'text-gray-600 bg-yellow-50 border-yellow-100'}`}>
                              "{req.specialInstructions}"
                          </div>
                      )}
@@ -136,7 +166,7 @@ const DraggableFacultyList: React.FC<Props> = ({ requests, schedule, instructors
                            className={`
                              flex items-start p-2 rounded border text-xs relative group transition-colors
                              ${isDisabled 
-                               ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default' 
+                               ? 'bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed' 
                                : isSame 
                                   ? 'bg-green-50 border-green-300 text-green-900 cursor-grab hover:bg-green-100 hover:shadow-sm active:cursor-grabbing'
                                   : 'bg-white border-blue-100 text-gray-700 cursor-grab hover:border-blue-300 hover:shadow-sm active:cursor-grabbing'
@@ -165,7 +195,7 @@ const DraggableFacultyList: React.FC<Props> = ({ requests, schedule, instructors
                            
                            {/* Show check if load met, OR show count if partially assigned but load not met */}
                            {loadMet ? (
-                             <CheckCircle2 className="w-4 h-4 text-green-500 absolute right-2 top-2" />
+                             <CheckCircle2 className="w-4 h-4 text-green-600 absolute right-2 top-2" />
                            ) : assignmentCount > 0 ? (
                              <div className="absolute right-2 top-2 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center" title={`${assignmentCount} section(s) assigned`}>
                                 <Layers className="w-3 h-3 mr-1" /> {assignmentCount}

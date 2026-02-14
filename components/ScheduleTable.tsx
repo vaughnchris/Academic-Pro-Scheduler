@@ -1,12 +1,19 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ClassSection, SectionStatus, FacultyRequest } from '../types';
 import { Edit2, X, Save, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import MultiSelect from './MultiSelect';
+import { DAYS_OF_WEEK } from '../services/mockData';
 
 interface Props {
   schedule: ClassSection[];
   facultyRequests: FacultyRequest[];
   availableRooms: string[];
+  // New props for Time Block management
+  availableTimeBlocks?: string[]; 
+  availableMethods?: string[];
+  onAddTimeBlock?: (newBlock: string) => void;
+  
   onUpdateSection: (id: string, updates: Partial<ClassSection>) => void;
   onAddSection: (section: Partial<ClassSection>) => void;
 }
@@ -60,15 +67,55 @@ const mapDaysToCode = (days: string[]) => {
   return days.map(d => map[d] || '').join('');
 };
 
+const parseDaysFromCode = (code: string): string[] => {
+  if (!code) return [];
+  const map: Record<string, string> = { 'M': 'Mon', 'T': 'Tue', 'W': 'Wed', 'R': 'Thu', 'F': 'Fri', 'S': 'Sat', 'U': 'Sun' };
+  return code.split('').map(c => map[c]).filter(Boolean);
+};
+
 const mapModalityToMethod = (mod: string) => {
     if (mod === 'Online') return 'ONLINE';
     if (mod === 'Hybrid') return 'HYBRID';
     return 'LEC';
 };
 
-const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRooms, onUpdateSection, onAddSection }) => {
+const ScheduleTable: React.FC<Props> = ({ 
+    schedule, 
+    facultyRequests, 
+    availableRooms, 
+    availableTimeBlocks = [],
+    availableMethods = [],
+    onAddTimeBlock,
+    onUpdateSection, 
+    onAddSection 
+}) => {
   const [editingSection, setEditingSection] = useState<ClassSection | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  // Time Block State for Edit Modal
+  const [selectedTimeBlock, setSelectedTimeBlock] = useState('');
+  const [isAddingTimeBlock, setIsAddingTimeBlock] = useState(false);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  // When editing section changes, try to match current time to a block
+  useEffect(() => {
+    if (editingSection) {
+        if (editingSection.beginTime && editingSection.endTime) {
+            const combined = `${editingSection.beginTime} - ${editingSection.endTime}`;
+            if (availableTimeBlocks.includes(combined)) {
+                setSelectedTimeBlock(combined);
+            } else {
+                setSelectedTimeBlock('CUSTOM'); // It has time, but matches no block
+            }
+        } else {
+            setSelectedTimeBlock('');
+        }
+        setIsAddingTimeBlock(false);
+        setCustomStart('');
+        setCustomEnd('');
+    }
+  }, [editingSection, availableTimeBlocks]);
 
   // Derive unique lists
   const facultyOptions = useMemo(() => {
@@ -86,13 +133,25 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
     return Array.from(roomSet).sort();
   }, [schedule, availableRooms]);
 
-  const getStatusColor = (status: SectionStatus) => {
-    switch (status) {
-      case SectionStatus.KEEP: return 'bg-white';
-      case SectionStatus.CHANGE: return 'bg-green-100';
-      case SectionStatus.DELETE: return 'bg-yellow-100';
-      case SectionStatus.NEW: return 'bg-orange-100';
-      default: return 'bg-white';
+  // Styling logic based on status
+  const getRowClasses = (section: ClassSection) => {
+    const isAssigned = section.faculty && section.faculty !== 'Staff';
+
+    switch (section.status) {
+      case SectionStatus.IMPORTED:
+        // If assigned, show as dark/bold but keep gray background to indicate source
+        if (isAssigned) return 'bg-gray-100 text-gray-900 font-bold border-l-4 border-blue-500';
+        return 'bg-gray-100 text-gray-500 italic font-normal'; // Template/Ghost look
+      case SectionStatus.KEEP:
+        return 'bg-blue-100 text-blue-900 font-semibold'; // Light Blue
+      case SectionStatus.CHANGE:
+        return 'bg-green-100 text-green-900 font-semibold'; // Green
+      case SectionStatus.DELETE:
+        return 'bg-orange-200 text-orange-900'; // Brown/Tan
+      case SectionStatus.NEW:
+        return 'bg-pink-100 text-pink-900 font-semibold'; // Light Pink
+      default:
+        return 'bg-white text-gray-900';
     }
   };
 
@@ -150,7 +209,12 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
 
   const handleSaveEdit = () => {
     if (editingSection) {
-      onUpdateSection(editingSection.id, editingSection);
+      const updates = { ...editingSection };
+      // Auto-confirm imported sections when manually edited
+      if (updates.status === SectionStatus.IMPORTED) {
+        updates.status = SectionStatus.KEEP;
+      }
+      onUpdateSection(editingSection.id, updates);
       setEditingSection(null);
     }
   };
@@ -159,6 +223,71 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
     if (editingSection) {
       setEditingSection({ ...editingSection, [field]: value });
     }
+  };
+
+  const handleTimeBlockChange = (value: string) => {
+      setSelectedTimeBlock(value);
+      if (value === 'NEW') {
+          setIsAddingTimeBlock(true);
+          return;
+      }
+      if (value === 'CUSTOM') {
+          return; // Do nothing to times, just allow manual edit if needed (though UI below hides inputs unless custom/new logic improved)
+      }
+      if (value && value !== 'CUSTOM') {
+          const parts = value.split(' - ');
+          if (parts.length === 2 && editingSection) {
+              setEditingSection({ 
+                  ...editingSection, 
+                  beginTime: parts[0], 
+                  endTime: parts[1] 
+              });
+          }
+      }
+  };
+  
+  const formatTime = (timeStr: string) => {
+     if(!timeStr) return '';
+     const [h, m] = timeStr.split(':');
+     const hour = parseInt(h);
+     const ampm = hour >= 12 ? 'PM' : 'AM';
+     const h12 = hour % 12 || 12;
+     // simple pad minutes
+     const mStr = m.length === 1 ? `0${m}` : m;
+     return `${h12}:${mStr} ${ampm}`;
+  };
+
+  const handleCreateTimeBlock = () => {
+      if (customStart && customEnd && onAddTimeBlock) {
+          const formattedStart = formatTime(customStart);
+          const formattedEnd = formatTime(customEnd);
+          const newBlock = `${formattedStart} - ${formattedEnd}`;
+          
+          // Call the prop to update the central list
+          onAddTimeBlock(newBlock);
+          
+          // Select it immediately locally
+          if (editingSection) {
+              setEditingSection({
+                  ...editingSection,
+                  beginTime: formattedStart,
+                  endTime: formattedEnd
+              });
+          }
+          setIsAddingTimeBlock(false);
+          // Force select logic to pick up the new value once parent rerenders, or set locally now:
+          setSelectedTimeBlock(newBlock); 
+      }
+  };
+
+  // Handle Faculty Dropdown Change directly in table
+  const handleFacultyChange = (id: string, newFaculty: string, currentStatus: SectionStatus) => {
+    let newStatus = currentStatus;
+    // If it was imported and we change faculty, mark it as active (KEEP or CHANGE, let's say CHANGE since we touched it)
+    if (currentStatus === SectionStatus.IMPORTED) {
+        newStatus = SectionStatus.CHANGE;
+    }
+    onUpdateSection(id, { faculty: newFaculty, status: newStatus });
   };
 
   // Drag Handlers
@@ -205,7 +334,7 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
                 meetingDays: days,
                 notes: combinedNotes, // Inject notes
                 // We keep the existing time/room of the slot we dropped onto
-                status: SectionStatus.CHANGE
+                status: SectionStatus.CHANGE // Explicitly sets to CHANGE, removing IMPORTED status
             });
         } else {
             // Drop on "Add New" -> Insert new section
@@ -263,7 +392,7 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
               return (
                 <tr 
                     key={section.id} 
-                    className={`${getStatusColor(section.status)} transition-colors text-gray-900 ${isDragOver ? 'bg-blue-100 ring-2 ring-blue-500 ring-inset' : 'hover:bg-gray-50'}`}
+                    className={`${getRowClasses(section)} transition-colors ${isDragOver ? 'bg-blue-100 ring-2 ring-blue-500 ring-inset' : 'hover:opacity-90'}`}
                     onDragOver={(e) => handleDragOver(e, section.id)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, section.id)}
@@ -272,7 +401,7 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
                   <td className="px-2 py-2">{section.subject}</td>
                   <td className="px-2 py-2">{section.courseNumber}</td>
                   <td className="px-2 py-2">{section.section}</td>
-                  <td className="px-2 py-2 font-medium">
+                  <td className="px-2 py-2">
                     {section.title}
                     {section.notes && <div className="text-xs text-blue-600 italic mt-0.5">{section.notes}</div>}
                   </td>
@@ -291,11 +420,13 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
                     <div className="relative group">
                       <select
                         value={section.faculty}
-                        onChange={(e) => onUpdateSection(section.id, { faculty: e.target.value })}
+                        onChange={(e) => handleFacultyChange(section.id, e.target.value, section.status)}
                         onClick={(e) => e.stopPropagation()} // Prevent row click issues
-                        className={`w-full p-1 border rounded text-gray-900 bg-white ${
-                            section.faculty === 'Staff' ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full p-1 border rounded bg-transparent ${
+                            section.faculty === 'Staff' && section.status !== SectionStatus.IMPORTED 
+                                ? 'border-red-300 bg-red-50 text-red-900' 
+                                : 'border-gray-300'
+                        } ${section.status === SectionStatus.IMPORTED && section.faculty === 'Staff' ? 'text-gray-500 italic' : 'text-gray-900 font-medium'}`}
                       >
                         {facultyOptions.map(opt => (
                             <option key={opt} value={opt}>{opt}</option>
@@ -308,7 +439,7 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
 
                       {/* Tooltip showing requests */}
                       {interestedFaculty.length > 0 && (
-                        <div className="absolute hidden group-hover:block z-50 bottom-full left-0 bg-gray-800 text-white text-xs rounded p-2 mb-1 w-48 shadow-lg">
+                        <div className="absolute hidden group-hover:block z-50 bottom-full left-0 bg-gray-800 text-white text-xs rounded p-2 mb-1 w-48 shadow-lg font-normal">
                           <strong>Requested by:</strong>
                           <ul className="list-disc pl-4 mt-1">
                             {interestedFaculty.map(f => (
@@ -327,7 +458,7 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
                       value={section.status} 
                       onChange={(e) => onUpdateSection(section.id, { status: e.target.value as SectionStatus })}
                       onClick={(e) => e.stopPropagation()}
-                      className="p-1 border border-gray-300 rounded text-xs text-gray-900 bg-white"
+                      className={`p-1 border border-gray-300 rounded text-xs bg-transparent ${section.status === SectionStatus.IMPORTED && section.faculty === 'Staff' ? 'text-gray-500 italic' : 'text-gray-900 font-bold'}`}
                     >
                       {Object.values(SectionStatus).map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -335,7 +466,7 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
                   <td className="px-2 py-2">
                       <button 
                         onClick={() => handleEditClick(section)}
-                        className="text-gray-500 hover:text-blue-600 p-1 rounded hover:bg-blue-50" 
+                        className="text-gray-500 hover:text-blue-600 p-1 rounded hover:bg-blue-50 transition-colors" 
                         title="Edit Details"
                       >
                           <Edit2 className="w-4 h-4" />
@@ -385,10 +516,8 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Term</label>
-                    <input type="text" value={editingSection.term} onChange={e => handleEditChange('term', e.target.value)} className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white" />
-                </div>
+                {/* Term removed as requested */}
+                
                 <div className="col-span-1">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
                     <input type="text" value={editingSection.subject} onChange={e => handleEditChange('subject', e.target.value)} className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white" />
@@ -400,6 +529,23 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
                 <div className="col-span-1">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                     <input type="text" value={editingSection.section} onChange={e => handleEditChange('section', e.target.value)} className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white" />
+                </div>
+                <div className="col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                    <select 
+                      value={editingSection.method} 
+                      onChange={e => handleEditChange('method', e.target.value)} 
+                      className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white"
+                    >
+                       <option value="">Select Method...</option>
+                       {availableMethods.map(m => (
+                         <option key={m} value={m}>{m}</option>
+                       ))}
+                       {/* Keep manual entry fallback just in case */}
+                       {!availableMethods.includes(editingSection.method) && editingSection.method && (
+                         <option value={editingSection.method}>{editingSection.method}</option>
+                       )}
+                    </select>
                 </div>
                 
                 <div className="col-span-2">
@@ -418,26 +564,75 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
 
                 <div className="col-span-1">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Days</label>
-                    <input 
-                        type="text" 
-                        value={editingSection.meetingDays} 
-                        onChange={e => handleEditChange('meetingDays', e.target.value.toUpperCase())} 
-                        className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white"
-                        placeholder="e.g. MWF, TR"
+                    <MultiSelect 
+                        label="Select Days" 
+                        options={DAYS_OF_WEEK} 
+                        selected={parseDaysFromCode(editingSection.meetingDays)} 
+                        onChange={(selected) => handleEditChange('meetingDays', mapDaysToCode(selected))}
                     />
-                </div>
-                <div className="col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                    <input type="text" value={editingSection.method} onChange={e => handleEditChange('method', e.target.value)} className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white" />
                 </div>
                 
                 <div className="col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                    <input type="text" value={editingSection.beginTime} onChange={e => handleEditChange('beginTime', e.target.value)} className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white" placeholder="e.g. 9:00 AM" />
+                     {/* Spacer */}
                 </div>
-                <div className="col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                    <input type="text" value={editingSection.endTime} onChange={e => handleEditChange('endTime', e.target.value)} className="w-full border border-gray-300 p-2 rounded text-gray-900 bg-white" placeholder="e.g. 10:15 AM" />
+                
+                <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Time Block</label>
+                    <div className="flex space-x-2">
+                         <select 
+                            value={selectedTimeBlock} 
+                            onChange={e => handleTimeBlockChange(e.target.value)}
+                            className="flex-1 border border-gray-300 p-2 rounded text-gray-900 bg-white"
+                         >
+                            <option value="">Select Time Block...</option>
+                            {availableTimeBlocks.map(tb => (
+                                <option key={tb} value={tb}>{tb}</option>
+                            ))}
+                            {selectedTimeBlock === 'CUSTOM' && <option value="CUSTOM">Custom/Manual</option>}
+                            <option value="NEW" className="font-bold text-blue-600">+ Add New Time Block</option>
+                         </select>
+                    </div>
+
+                    {/* New Time Block Creator */}
+                    {isAddingTimeBlock && (
+                         <div className="mt-3 bg-gray-50 p-3 rounded border border-gray-200 animate-in fade-in slide-in-from-top-2">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Define New Time Block</h4>
+                            <div className="flex gap-2 items-center">
+                                <input 
+                                    type="time" 
+                                    value={customStart}
+                                    onChange={e => setCustomStart(e.target.value)}
+                                    className="border p-1 rounded text-sm bg-white"
+                                />
+                                <span className="text-gray-400">to</span>
+                                <input 
+                                    type="time" 
+                                    value={customEnd}
+                                    onChange={e => setCustomEnd(e.target.value)}
+                                    className="border p-1 rounded text-sm bg-white"
+                                />
+                                <button 
+                                    onClick={handleCreateTimeBlock}
+                                    className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700"
+                                >
+                                    Add
+                                </button>
+                                <button 
+                                    onClick={() => setIsAddingTimeBlock(false)}
+                                    className="text-gray-500 hover:text-gray-700 px-2"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                         </div>
+                    )}
+
+                    {/* Fallback Display of current time if not in list */}
+                    {!isAddingTimeBlock && (
+                        <div className="text-xs text-gray-500 mt-1 pl-1">
+                            Current: {editingSection.beginTime} - {editingSection.endTime}
+                        </div>
+                    )}
                 </div>
 
                 <div className="col-span-1">
@@ -509,4 +704,3 @@ const ScheduleTable: React.FC<Props> = ({ schedule, facultyRequests, availableRo
 };
 
 export default ScheduleTable;
-    

@@ -1,19 +1,103 @@
 
-import React from 'react';
-import { FacultyRequest } from '../types';
-import { User, Phone, CheckCircle, XCircle, RotateCcw, Mail } from 'lucide-react';
+import React, { useState } from 'react';
+import { FacultyRequest, CourseOption, Instructor } from '../types';
+import { User, Phone, CheckCircle, XCircle, RotateCcw, Mail, Edit, Trash2, Plus } from 'lucide-react';
+import FacultyForm from './FacultyForm';
 
 interface Props {
   requests: FacultyRequest[];
+  // Data props for the form
+  instructors: Instructor[];
+  courses: CourseOption[];
+  modalities: string[];
+  campuses: string[];
+  timeBlocks: string[];
+  departmentId: string;
+  scheduleTitle: string;
+  
+  onAdd: (req: FacultyRequest) => void;
+  onUpdate: (req: FacultyRequest) => void;
+  onDelete: (id: string) => void;
 }
 
-const FacultyRequestsList: React.FC<Props> = ({ requests }) => {
+const FacultyRequestsList: React.FC<Props> = ({ 
+    requests,
+    instructors,
+    courses,
+    modalities,
+    campuses,
+    timeBlocks,
+    departmentId,
+    scheduleTitle,
+    onAdd,
+    onUpdate,
+    onDelete
+}) => {
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const handleEdit = (id: string) => {
+      setEditingId(id);
+      setIsAdding(false);
+  };
+
+  const handleDelete = (id: string) => {
+      if (confirm("Are you sure you want to delete this faculty request?")) {
+          onDelete(id);
+      }
+  };
+
+  const handleCancel = () => {
+      setIsAdding(false);
+      setEditingId(null);
+  };
+
+  const handleFormSubmit = (req: FacultyRequest) => {
+      if (editingId) {
+          onUpdate(req);
+      } else {
+          onAdd(req);
+      }
+      handleCancel();
+  };
+
+  const editingRequest = requests.find(r => r.id === editingId);
+
+  // If Adding or Editing, show the Form
+  if (isAdding || editingId) {
+      return (
+          <div className="p-8">
+              <FacultyForm
+                departmentId={departmentId}
+                scheduleTitle={scheduleTitle}
+                onSubmit={handleFormSubmit}
+                availableCourses={courses}
+                availableModalities={modalities}
+                availableCampuses={campuses}
+                instructors={instructors}
+                availableTimes={timeBlocks}
+                initialValues={editingRequest} // Will be undefined if Adding
+                onCancel={handleCancel}
+                isAdminMode={true}
+              />
+          </div>
+      );
+  }
+
+  // Otherwise show the list
   if (requests.length === 0) {
     return (
       <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center h-full">
         <User className="w-16 h-16 mb-4 text-gray-300" />
         <h2 className="text-xl font-semibold">No Requests Found</h2>
-        <p>Faculty requests submitted via the form will appear here.</p>
+        <p className="mb-6">Faculty requests submitted via the form will appear here.</p>
+        <button 
+            onClick={() => setIsAdding(true)}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Manual Request
+        </button>
       </div>
     );
   }
@@ -23,15 +107,42 @@ const FacultyRequestsList: React.FC<Props> = ({ requests }) => {
         <div className="flex justify-between items-end mb-6">
             <div>
                 <h1 className="text-3xl font-bold text-gray-800">Submitted Requests</h1>
-                <p className="text-gray-500">Review preferences submitted by faculty members.</p>
+                <p className="text-gray-500">Review and manage faculty preferences.</p>
             </div>
-            <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-bold text-sm">
-                Total: {requests.length}
+            <div className="flex items-center space-x-3">
+                 <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-bold text-sm">
+                    Total: {requests.length}
+                 </div>
+                 <button 
+                    onClick={() => setIsAdding(true)}
+                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Request
+                </button>
             </div>
         </div>
         
         {requests.map((req) => (
-            <div key={req.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+            <div key={req.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow relative group">
+                {/* Action Buttons */}
+                <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        onClick={() => handleEdit(req.id)}
+                        className="p-2 bg-white border border-gray-200 rounded-full hover:bg-blue-50 text-blue-600 shadow-sm"
+                        title="Edit Request"
+                    >
+                        <Edit className="w-4 h-4" />
+                    </button>
+                    <button 
+                        onClick={() => handleDelete(req.id)}
+                        className="p-2 bg-white border border-gray-200 rounded-full hover:bg-red-50 text-red-600 shadow-sm"
+                        title="Delete Request"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
+
                 <div className="bg-gray-50 p-4 border-b border-gray-200 flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <div>
                         <div className="flex items-center">
@@ -52,7 +163,7 @@ const FacultyRequestsList: React.FC<Props> = ({ requests }) => {
                              <span className="text-xs">Submitted: {new Date(req.submittedAt).toLocaleDateString()}</span>
                         </div>
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-4 pr-12">
                          <div className="flex flex-col items-end">
                             <span className="text-xs text-gray-500 uppercase font-semibold">Desired Load</span>
                             <span className="text-lg font-bold text-gray-800">{req.loadDesired} Classes</span>
