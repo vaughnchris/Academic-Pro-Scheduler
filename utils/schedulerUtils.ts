@@ -346,3 +346,83 @@ export const exportScheduleToExcel = (schedule: ClassSection[], title: string) =
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
+
+export const exportRoomUtilizationReport = (schedule: ClassSection[], title: string) => {
+  // Filter valid room assignments: Exclude Delete, Online, TBA
+  const activeSchedule = schedule.filter(s =>
+    s.status !== SectionStatus.DELETE &&
+    s.room &&
+    s.room.toUpperCase() !== 'ONLINE' &&
+    s.room.toUpperCase() !== 'TBA'
+  );
+
+  // Sort by Room, then Day sort value, then Time
+  const sorted = activeSchedule.sort((a, b) => {
+    // 1. Room
+    if (a.room !== b.room) return a.room.localeCompare(b.room);
+    
+    // 2. Day Priority
+    const dayA = getDaySortValue(a.meetingDays);
+    const dayB = getDaySortValue(b.meetingDays);
+    if (dayA !== dayB) return dayA - dayB;
+    
+    // 3. Start Time
+    return parseTimeMinutes(a.beginTime) - parseTimeMinutes(b.beginTime);
+  });
+
+  const tableRows = sorted.map(s => `
+    <tr>
+      <td>${s.room}</td>
+      <td>${s.meetingDays || '-'}</td>
+      <td>${s.beginTime}</td>
+      <td>${s.endTime}</td>
+      <td>${s.subject} ${s.courseNumber}-${s.section}</td>
+      <td>${s.title}</td>
+      <td>${s.faculty}</td>
+      <td>${s.method}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+      <style>
+        th { font-weight: bold; border: 1px solid #000; background-color: #e5e7eb; padding: 5px; }
+        td { border: 1px solid #d1d5db; padding: 5px; text-align: left; }
+      </style>
+    </head>
+    <body>
+      <h2>${title} - Room Utilization Report</h2>
+      <p>Generated: ${new Date().toLocaleDateString()}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Days</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Course</th>
+            <th>Title</th>
+            <th>Faculty</th>
+            <th>Method</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Room_Utilization_${new Date().toISOString().split('T')[0]}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};

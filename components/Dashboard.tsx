@@ -5,8 +5,9 @@ import { ClassSection, FacultyRequest, Instructor, EmailSettings, SectionStatus,
 import ScheduleTable from './ScheduleTable';
 import SmartAssistant from './SmartAssistant';
 import DraggableFacultyList from './DraggableFacultyList';
-import { Upload, ArrowUpDown, Clock, MapPin, CheckCircle2, Mail, Send, X, User, TrendingUp, TrendingDown, Minus, Download, AlertCircle, ToggleLeft, ToggleRight, Sparkles, ListFilter, History, FileUp } from 'lucide-react';
-import { parseScheduleCSV, exportScheduleToExcel, parseTimeMinutes, getDaySortValue } from '../utils/schedulerUtils';
+import { WeeklyVisualSchedule } from './WeeklyVisualSchedule'; // Import new component
+import { Upload, ArrowUpDown, Clock, MapPin, CheckCircle2, Mail, Send, X, User, TrendingUp, TrendingDown, Minus, Download, AlertCircle, ToggleLeft, ToggleRight, Sparkles, ListFilter, History, FileUp, Building, List, Calendar as CalendarIcon } from 'lucide-react';
+import { parseScheduleCSV, exportScheduleToExcel, parseTimeMinutes, getDaySortValue, exportRoomUtilizationReport } from '../utils/schedulerUtils';
 
 interface Props {
   departmentName: string;
@@ -28,17 +29,20 @@ interface Props {
   // New props for archived schedules
   archivedSchedules: ArchivedSchedule[];
   onLoadArchivedSchedule: (scheduleId: string) => void;
+  sortCriterion: 'course' | 'time' | 'room' | 'faculty' | 'status';
+  onRemoveSection: (id: string) => void;
 }
 
 const Dashboard: React.FC<Props> = ({ 
     departmentName, scheduleTitle, schedule, requests, rooms, instructors, 
     onUpdateSection, onAddSection, onImportSchedule, onSort, onUpdateInstructor, 
     isSidebarCollapsed, emailSettings, timeBlocks, modalities, onAddTimeBlock,
-    archivedSchedules, onLoadArchivedSchedule
+    archivedSchedules, onLoadArchivedSchedule, sortCriterion, onRemoveSection
 }) => {
   const [showAssistant, setShowAssistant] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
-  const [showLoadModal, setShowLoadModal] = useState(false); // New Load Modal State
+  const [showLoadModal, setShowLoadModal] = useState(false); 
+  const [viewMode, setViewMode] = useState<'list' | 'visual'>('list'); // View Mode State
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Resize State
@@ -49,7 +53,7 @@ const Dashboard: React.FC<Props> = ({
   const [isAutoAssignEnabled, setIsAutoAssignEnabled] = useState(false);
 
   // --- Statistics Calculations ---
-  
+  // ... (stats calc remains same) ...
   // 1. Total Sections (Active only, excluding Deleted)
   const activeSections = useMemo(() => schedule.filter(s => s.status !== 'Delete'), [schedule]);
   const totalActive = activeSections.length;
@@ -290,6 +294,26 @@ const Dashboard: React.FC<Props> = ({
         </div>
         <div className="flex flex-wrap gap-2 items-center">
              
+             {/* View Toggle */}
+             <div className="bg-white border border-gray-200 rounded-md shadow-sm p-0.5 flex mr-2">
+                <button 
+                    onClick={() => setViewMode('list')}
+                    className={`flex items-center px-2 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-gray-50'}`}
+                    title="List View"
+                >
+                    <List className="w-4 h-4 mr-1" /> List
+                </button>
+                <button 
+                    onClick={() => setViewMode('visual')}
+                    className={`flex items-center px-2 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === 'visual' ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-gray-50'}`}
+                    title="Visual Grid View"
+                >
+                    <CalendarIcon className="w-4 h-4 mr-1" /> Visual
+                </button>
+             </div>
+
+             <div className="w-px h-8 bg-gray-300 mx-1 hidden md:block"></div>
+
              {/* Auto-Assign Toggle */}
              <button 
                 onClick={() => setIsAutoAssignEnabled(!isAutoAssignEnabled)}
@@ -307,43 +331,45 @@ const Dashboard: React.FC<Props> = ({
              
              <div className="w-px h-8 bg-gray-300 mx-1 hidden md:block"></div>
 
-             {/* Improved Sort Control Group */}
-             <div className="flex items-center bg-white rounded-md shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-3 py-2 bg-gray-50 border-r border-gray-200 flex items-center text-gray-500">
-                    <ListFilter className="w-3.5 h-3.5 mr-1.5" />
-                    <span className="text-[10px] font-bold uppercase tracking-wide">Sort By</span>
-                </div>
-                <button 
-                  onClick={() => onSort('course')}
-                  className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-blue-600 border-r border-gray-200 transition-colors"
-                >
-                   Course
-                </button>
-                <button 
-                  onClick={() => onSort('time')}
-                  className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-blue-600 border-r border-gray-200 transition-colors"
-                >
-                   Time
-                </button>
-                <button 
-                  onClick={() => onSort('room')}
-                  className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-blue-600 border-r border-gray-200 transition-colors"
-                >
-                   Room
-                </button>
-                <button 
-                  onClick={() => onSort('faculty')}
-                  className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-blue-600 border-r border-gray-200 transition-colors"
-                >
-                   Faculty
-                </button>
-                <button 
-                  onClick={() => onSort('status')}
-                  className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors"
-                >
-                   Status
-                </button>
-             </div>
+             {/* Improved Sort Control Group (Only show in List mode for now) */}
+             {viewMode === 'list' && (
+                 <div className="flex items-center bg-white rounded-md shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-r border-gray-200 flex items-center text-gray-500">
+                        <ListFilter className="w-3.5 h-3.5 mr-1.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-wide">Sort By</span>
+                    </div>
+                    <button 
+                      onClick={() => onSort('course')}
+                      className={`px-3 py-2 text-xs font-medium border-r border-gray-200 transition-colors ${sortCriterion === 'course' ? 'bg-blue-100 text-blue-800 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'}`}
+                    >
+                       Course
+                    </button>
+                    <button 
+                      onClick={() => onSort('time')}
+                      className={`px-3 py-2 text-xs font-medium border-r border-gray-200 transition-colors ${sortCriterion === 'time' ? 'bg-blue-100 text-blue-800 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'}`}
+                    >
+                       Time
+                    </button>
+                    <button 
+                      onClick={() => onSort('room')}
+                      className={`px-3 py-2 text-xs font-medium border-r border-gray-200 transition-colors ${sortCriterion === 'room' ? 'bg-blue-100 text-blue-800 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'}`}
+                    >
+                       Room
+                    </button>
+                    <button 
+                      onClick={() => onSort('faculty')}
+                      className={`px-3 py-2 text-xs font-medium border-r border-gray-200 transition-colors ${sortCriterion === 'faculty' ? 'bg-blue-100 text-blue-800 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'}`}
+                    >
+                       Faculty
+                    </button>
+                    <button 
+                      onClick={() => onSort('status')}
+                      className={`px-3 py-2 text-xs font-medium transition-colors ${sortCriterion === 'status' ? 'bg-blue-100 text-blue-800 font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'}`}
+                    >
+                       Status
+                    </button>
+                 </div>
+             )}
              
              {/* Hidden Input for File Upload (Triggered via Modal) */}
              <input 
@@ -365,6 +391,15 @@ const Dashboard: React.FC<Props> = ({
             </button>
 
             <button 
+                onClick={() => exportRoomUtilizationReport(schedule, scheduleTitle)}
+                className="flex items-center px-3 py-2 bg-slate-700 text-white border border-slate-800 rounded-md shadow-sm text-xs font-medium hover:bg-slate-800 transition-colors ml-2"
+                title="Room Utilization Report"
+            >
+                <Building className="w-3.5 h-3.5 mr-2" />
+                Room Report
+            </button>
+
+            <button 
                 onClick={handleExportClick}
                 className="flex items-center px-3 py-2 bg-green-600 text-white border border-green-700 rounded-md shadow-sm text-xs font-medium hover:bg-green-700 transition-colors"
                 title="Export to Excel"
@@ -382,8 +417,8 @@ const Dashboard: React.FC<Props> = ({
       </div>
 
       {/* Metrics Row */}
+      {/* ... (Metrics Row code unchanged) ... */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 flex-shrink-0">
-         
          {/* Total Sections & Net Change */}
          <div className="bg-white px-4 py-3 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between">
             <div>
@@ -454,18 +489,23 @@ const Dashboard: React.FC<Props> = ({
 
       {/* Main Workspace Area */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-          {/* Main Table Area */}
+          {/* Main Table/Grid Area */}
           <div className="flex-1 overflow-y-auto pr-2 rounded-lg border border-gray-200 bg-white shadow-sm">
-             <ScheduleTable 
-                schedule={schedule} 
-                facultyRequests={requests}
-                availableRooms={rooms}
-                availableTimeBlocks={timeBlocks}
-                availableMethods={modalities}
-                onAddTimeBlock={onAddTimeBlock}
-                onUpdateSection={onUpdateSection}
-                onAddSection={onAddSection}
-             />
+             {viewMode === 'list' ? (
+                 <ScheduleTable 
+                    schedule={schedule} 
+                    facultyRequests={requests}
+                    availableRooms={rooms}
+                    availableTimeBlocks={timeBlocks}
+                    availableMethods={modalities}
+                    onAddTimeBlock={onAddTimeBlock}
+                    onUpdateSection={onUpdateSection}
+                    onAddSection={onAddSection}
+                    onRemoveSection={onRemoveSection}
+                 />
+             ) : (
+                 <WeeklyVisualSchedule schedule={schedule} />
+             )}
           </div>
 
           {/* Resizable Splitter */}

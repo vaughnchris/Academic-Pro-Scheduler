@@ -44,14 +44,23 @@ const LandingPage: React.FC<Props> = ({ scheduleTitle, departments, schoolConfig
       )}
 
       <div className="text-center mb-8 relative z-0">
-        <div className="flex justify-center mb-4">
+        
+        {/* Large Logo */}
+        <div className="mb-8 flex justify-center">
+             <h1 className="text-5xl md:text-7xl font-bold tracking-wide whitespace-nowrap text-white drop-shadow-lg">
+                ACADEMIC<span className="text-blue-400">PRO</span>
+             </h1>
+        </div>
+
+        <div className="flex justify-center mb-6">
             <div className="bg-white/10 p-4 rounded-full backdrop-blur-sm shadow-xl ring-1 ring-white/20">
                 <Calendar className="w-12 h-12 text-blue-300" />
             </div>
         </div>
-        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-200">
-          {schoolConfig ? schoolConfig.schoolName : 'AcademicPro Scheduler'}
-        </h1>
+        
+        <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-200">
+          {schoolConfig ? schoolConfig.schoolName : 'Scheduler'}
+        </h2>
         <p className="text-xl text-blue-300 font-medium mb-2 uppercase tracking-widest text-sm">{scheduleTitle}</p>
         <p className="text-lg text-blue-100 max-w-2xl mx-auto font-light">
           Intelligent Department Scheduling System

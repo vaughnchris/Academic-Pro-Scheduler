@@ -146,6 +146,12 @@ const App: React.FC = () => {
   const handleUpdateSection = (id: string, updates: Partial<ClassSection>) => {
     updateDocument('schedule', id, updates);
   };
+  
+  const handleRemoveSection = (id: string) => {
+    if (confirm("Are you sure you want to permanently remove this section from the schedule?")) {
+        deleteDocument('schedule', id);
+    }
+  };
 
   const handleAddSection = (newSection: Partial<ClassSection>) => {
     if (!activeDeptId) return;
@@ -679,6 +685,8 @@ const App: React.FC = () => {
             onAddTimeBlock={handleAddTimeBlock}
             archivedSchedules={archivedSchedules}
             onLoadArchivedSchedule={handleLoadArchivedSchedule}
+            sortCriterion={sortCriterion}
+            onRemoveSection={handleRemoveSection}
           />
         )}
 

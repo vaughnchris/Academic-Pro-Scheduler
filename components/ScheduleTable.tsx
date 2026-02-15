@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ClassSection, SectionStatus, FacultyRequest } from '../types';
-import { Edit2, X, Save, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import { Edit2, X, Save, AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import MultiSelect from './MultiSelect';
 import { DAYS_OF_WEEK } from '../services/mockData';
 
@@ -16,6 +16,7 @@ interface Props {
   
   onUpdateSection: (id: string, updates: Partial<ClassSection>) => void;
   onAddSection: (section: Partial<ClassSection>) => void;
+  onRemoveSection: (id: string) => void;
 }
 
 // Helper to parse time string "9:35 AM" to minutes from midnight
@@ -87,7 +88,8 @@ const ScheduleTable: React.FC<Props> = ({
     availableMethods = [],
     onAddTimeBlock,
     onUpdateSection, 
-    onAddSection 
+    onAddSection,
+    onRemoveSection
 }) => {
   const [editingSection, setEditingSection] = useState<ClassSection | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -463,13 +465,20 @@ const ScheduleTable: React.FC<Props> = ({
                       {Object.values(SectionStatus).map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2 flex items-center justify-end space-x-1">
                       <button 
                         onClick={() => handleEditClick(section)}
                         className="text-gray-500 hover:text-blue-600 p-1 rounded hover:bg-blue-50 transition-colors" 
                         title="Edit Details"
                       >
                           <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => onRemoveSection(section.id)}
+                        className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors" 
+                        title="Permanently Remove"
+                      >
+                          <Trash2 className="w-4 h-4" />
                       </button>
                   </td>
                 </tr>
