@@ -180,7 +180,7 @@ const DraggableFacultyList: React.FC<Props> = ({ requests, schedule, instructors
                              </div>
                              <div className="mt-1 flex flex-wrap gap-1">
                                   <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] ${isSame && !isDisabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{pref.modality}</span>
-                                  {pref.daysAvailable.length > 0 && (
+                                  {pref.modality !== 'Online' && pref.daysAvailable.length > 0 && (
                                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] ${isSame && !isDisabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{pref.daysAvailable.join(', ')}</span>
                                   )}
                              </div>
@@ -295,8 +295,14 @@ const DraggableFacultyList: React.FC<Props> = ({ requests, schedule, instructors
                                             <td className="p-3 align-top">
                                                 <div className="font-semibold text-gray-800">{p.classTitle}</div>
                                                 <div className="text-xs text-gray-500 mt-1">
-                                                    {p.daysAvailable.length > 0 && <span className="mr-2">Days: {p.daysAvailable.join(', ')}</span>}
-                                                    {p.timesAvailable.length > 0 && <span>Times: {p.timesAvailable.join(', ')}</span>}
+                                                    {p.modality === 'Online' ? (
+                                                        <span className="italic">Online</span>
+                                                    ) : (
+                                                        <>
+                                                            {p.daysAvailable.length > 0 && <span className="mr-2">Days: {p.daysAvailable.join(', ')}</span>}
+                                                            {p.timesAvailable.length > 0 && <span>Times: {p.timesAvailable.join(', ')}</span>}
+                                                        </>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs text-gray-500">Campus: {p.campus}</div>
                                                 <div className="text-xs text-gray-500">Textbook: {p.textbookCost}</div>

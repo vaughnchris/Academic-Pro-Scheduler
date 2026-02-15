@@ -1,17 +1,19 @@
 
 import React, { useState } from 'react';
 import { FacultyRequest, PreferenceRow, CourseOption, Instructor } from '../types';
-import { Send, Info, X, Save } from 'lucide-react';
+import { Send, Info, X, Save, Plus, Trash2 } from 'lucide-react';
 import MultiSelect from './MultiSelect';
 import { DAYS_OF_WEEK } from '../services/mockData';
 
 interface Props {
   departmentId: string;
+  departmentName?: string;
   scheduleTitle: string;
   onSubmit: (request: FacultyRequest) => void;
   availableCourses: CourseOption[];
   availableModalities: string[];
   availableCampuses: string[];
+  availableTextbookCosts: string[]; // New prop for dynamic costs
   instructors: Instructor[];
   availableTimes: string[];
   initialValues?: FacultyRequest;
@@ -19,13 +21,27 @@ interface Props {
   isAdminMode?: boolean;
 }
 
+const createEmptyPreference = (rank: number): PreferenceRow => ({
+  rank,
+  classTitle: '',
+  daysAvailable: [],
+  timesAvailable: [],
+  campus: '',
+  modality: '',
+  notes: '',
+  sameAsLastYear: false,
+  textbookCost: 'Regular Cost'
+});
+
 const FacultyForm: React.FC<Props> = ({ 
   departmentId, 
+  departmentName = 'Department of Business & Computing',
   scheduleTitle, 
   onSubmit, 
   availableCourses, 
   availableModalities, 
   availableCampuses, 
+  availableTextbookCosts,
   instructors, 
   availableTimes,
   initialValues,
@@ -37,38 +53,20 @@ const FacultyForm: React.FC<Props> = ({
   const [phone, setPhone] = useState(initialValues?.contactNumber || '');
   const [load, setLoad] = useState<number>(initialValues?.loadDesired || 0);
   
-  // Initialize preferences with padding up to 7 rows if needed, or use existing
+  // Initialize preferences with padding up to 4 rows if needed, or use existing
   const [preferences, setPreferences] = useState<PreferenceRow[]>(() => {
     if (initialValues?.preferences) {
         const existing = initialValues.preferences;
         const padded = [...existing];
-        // Fill up to 7 to maintain UI consistency if desired, or just keep what we have
-        for (let i = existing.length; i < 7; i++) {
-            padded.push({
-                rank: i + 1,
-                classTitle: '',
-                daysAvailable: [],
-                timesAvailable: [],
-                campus: '',
-                modality: '',
-                notes: '',
-                sameAsLastYear: false,
-                textbookCost: 'Regular Cost'
-            });
+        // Fill up to 4 to maintain standard initial form size
+        if (padded.length < 4) {
+            for (let i = existing.length; i < 4; i++) {
+                padded.push(createEmptyPreference(i + 1));
+            }
         }
         return padded;
     }
-    return Array.from({ length: 7 }, (_, i) => ({
-      rank: i + 1,
-      classTitle: '',
-      daysAvailable: [],
-      timesAvailable: [],
-      campus: '',
-      modality: '',
-      notes: '',
-      sameAsLastYear: false,
-      textbookCost: 'Regular Cost'
-    }));
+    return Array.from({ length: 4 }, (_, i) => createEmptyPreference(i + 1));
   });
 
   const [certified, setCertified] = useState<boolean>(initialValues?.certifiedOnline ?? false);
@@ -89,6 +87,21 @@ const FacultyForm: React.FC<Props> = ({
     const newPrefs = [...preferences];
     newPrefs[index] = { ...newPrefs[index], [field]: value };
     setPreferences(newPrefs);
+  };
+
+  const handleAddRow = () => {
+      setPreferences(prev => [
+          ...prev,
+          createEmptyPreference(prev.length + 1)
+      ]);
+  };
+
+  const handleRemoveRow = (index: number) => {
+      const newPrefs = preferences.filter((_, i) => i !== index).map((p, i) => ({
+          ...p,
+          rank: i + 1
+      }));
+      setPreferences(newPrefs);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -127,7 +140,7 @@ const FacultyForm: React.FC<Props> = ({
             <h1 className="text-3xl font-bold text-gray-800">
                 {isAdminMode && initialValues ? 'Edit Faculty Request' : isAdminMode ? 'Add New Faculty Request' : 'Faculty Schedule Request'}
             </h1>
-            <h2 className="text-xl text-gray-600 mt-2">School of Business and Computing - {scheduleTitle}</h2>
+            <h2 className="text-xl text-gray-600 mt-2">{departmentName} - {scheduleTitle}</h2>
         </div>
         {onCancel && (
             <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
@@ -201,9 +214,10 @@ const FacultyForm: React.FC<Props> = ({
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">Times</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campus</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modality</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">Textbook</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">Text & Supplies</th>
                 <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20" title="Same section, time and room as last year?">Same?</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">Section Notes</th>
+                <th className="px-3 py-2 w-10"></th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -271,16 +285,20 @@ const FacultyForm: React.FC<Props> = ({
                     </select>
                   </td>
 
-                  {/* Textbook Cost Dropdown */}
+                  {/* Textbook Cost Dropdown (Dynamic) */}
                   <td className="px-1 py-1 align-top">
                     <select 
                       value={pref.textbookCost} 
                       onChange={e => handlePreferenceChange(idx, 'textbookCost', e.target.value)} 
                       className="w-full p-2 border-gray-200 border rounded text-sm bg-white text-gray-900"
                     >
-                       <option value="Regular Cost">Regular</option>
-                       <option value="Low Cost">Low Cost</option>
-                       <option value="No Cost">No Cost</option>
+                       <option value="">Select Cost...</option>
+                       {availableTextbookCosts.map(cost => (
+                           <option key={cost} value={cost}>{cost}</option>
+                       ))}
+                       {!availableTextbookCosts.includes(pref.textbookCost) && pref.textbookCost && (
+                           <option value={pref.textbookCost}>{pref.textbookCost}</option>
+                       )}
                     </select>
                   </td>
 
@@ -304,10 +322,32 @@ const FacultyForm: React.FC<Props> = ({
                       className="w-full p-2 border-gray-200 border rounded text-sm bg-white text-gray-900"
                     />
                   </td>
+
+                  <td className="px-1 py-1 align-top text-center pt-2">
+                      <button 
+                        type="button"
+                        onClick={() => handleRemoveRow(idx)}
+                        className="text-gray-400 hover:text-red-500 p-1 rounded transition-colors"
+                        title="Remove row"
+                        disabled={preferences.length <= 1}
+                      >
+                          <Trash2 className="w-4 h-4" />
+                      </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          
+          <div className="mt-4">
+              <button 
+                type="button" 
+                onClick={handleAddRow}
+                className="flex items-center text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors hover:bg-blue-50 px-3 py-2 rounded-md border border-transparent hover:border-blue-200"
+              >
+                  <Plus className="w-4 h-4 mr-2" /> Add Another Course Preference
+              </button>
+          </div>
         </div>
 
         {/* Certifications & Willingness */}

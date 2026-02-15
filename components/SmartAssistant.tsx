@@ -1,14 +1,16 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Loader2 } from 'lucide-react';
+import { Bot, Send, Loader2, X } from 'lucide-react';
 import { askScheduleAssistant } from '../services/geminiService';
 import { ClassSection, FacultyRequest, ChatMessage } from '../types';
 
 interface Props {
   schedule: ClassSection[];
   requests: FacultyRequest[];
+  onClose: () => void;
 }
 
-const SmartAssistant: React.FC<Props> = ({ schedule, requests }) => {
+const SmartAssistant: React.FC<Props> = ({ schedule, requests, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'model', text: 'Hello! I can help you analyze the schedule. Ask me about faculty requests, conflicts, or unstaffed classes.', timestamp: new Date() }
   ]);
@@ -37,10 +39,19 @@ const SmartAssistant: React.FC<Props> = ({ schedule, requests }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-gray-200 shadow-xl w-full max-w-sm fixed right-0 top-0 bottom-0 z-40 transform transition-transform">
-      <div className="bg-blue-900 text-white p-4 flex items-center shadow">
-        <Bot className="w-6 h-6 mr-2" />
-        <h2 className="font-semibold text-lg">Schedule Assistant</h2>
+    <div className="flex flex-col h-full bg-white border-l border-gray-200 shadow-xl w-full max-w-sm fixed right-0 top-0 bottom-0 z-40 transform transition-transform animate-in slide-in-from-right duration-300">
+      <div className="bg-blue-900 text-white p-4 flex items-center justify-between shadow">
+        <div className="flex items-center">
+            <Bot className="w-6 h-6 mr-2" />
+            <h2 className="font-semibold text-lg">Schedule Assistant</h2>
+        </div>
+        <button 
+            onClick={onClose}
+            className="text-blue-100 hover:text-white p-1 rounded-full hover:bg-blue-800 transition-colors"
+            title="Close Assistant"
+        >
+            <X className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" ref={scrollRef}>

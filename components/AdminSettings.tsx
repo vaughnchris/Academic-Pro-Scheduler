@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { ClassSection, CourseOption, Instructor, EmailSettings } from '../types';
-import { Trash2, Plus, Settings, UserPlus, Edit2, Clock, Mail, Check, X, GripVertical } from 'lucide-react';
+import { Trash2, Plus, Settings, UserPlus, Edit2, Clock, Mail, Check, X, GripVertical, UserCog } from 'lucide-react';
 import { parseTimeMinutes } from '../utils/schedulerUtils';
 
 interface Props {
@@ -56,6 +56,7 @@ const AdminSettings: React.FC<Props> = ({
   const [newInstEmail, setNewInstEmail] = useState('');
   const [newInstSeniority, setNewInstSeniority] = useState<number | ''>('');
   const [newInstType, setNewInstType] = useState<'Full-Time' | 'Part-Time'>('Full-Time');
+  const [newInstIsScheduler, setNewInstIsScheduler] = useState(false);
 
   // Instructor Drag State
   const [draggedInstructorId, setDraggedInstructorId] = useState<string | null>(null);
@@ -175,7 +176,8 @@ const AdminSettings: React.FC<Props> = ({
              name: newInstName,
              email: newInstEmail,
              type: newInstType,
-             seniority: newInstSeniority === '' ? 99 : newInstSeniority
+             seniority: newInstSeniority === '' ? 99 : newInstSeniority,
+             isScheduler: newInstIsScheduler
           });
           setEditingInstructorId(null);
       } else {
@@ -184,7 +186,8 @@ const AdminSettings: React.FC<Props> = ({
               name: newInstName,
               email: newInstEmail,
               type: newInstType,
-              seniority: newInstSeniority === '' ? 99 : newInstSeniority
+              seniority: newInstSeniority === '' ? 99 : newInstSeniority,
+              isScheduler: newInstIsScheduler
           });
       }
       
@@ -193,6 +196,7 @@ const AdminSettings: React.FC<Props> = ({
       setNewInstEmail('');
       setNewInstSeniority('');
       setNewInstType('Full-Time');
+      setNewInstIsScheduler(false);
   };
 
   const startEditInstructor = (inst: Instructor) => {
@@ -201,6 +205,7 @@ const AdminSettings: React.FC<Props> = ({
       setNewInstEmail(inst.email);
       setNewInstType(inst.type);
       setNewInstSeniority(inst.seniority !== undefined ? inst.seniority : '');
+      setNewInstIsScheduler(inst.isScheduler || false);
   };
 
   const cancelEditInstructor = () => {
@@ -209,6 +214,7 @@ const AdminSettings: React.FC<Props> = ({
       setNewInstEmail('');
       setNewInstSeniority('');
       setNewInstType('Full-Time');
+      setNewInstIsScheduler(false);
   };
 
   const removeInstructor = (id: string) => {
@@ -320,6 +326,17 @@ const AdminSettings: React.FC<Props> = ({
                         <option value="Part-Time">Part-Time</option>
                     </select>
                 </div>
+                 <div className="flex items-center pb-2 px-1">
+                    <label className="flex items-center cursor-pointer" title="Designate as Department Scheduler">
+                        <input 
+                            type="checkbox" 
+                            checked={newInstIsScheduler} 
+                            onChange={e => setNewInstIsScheduler(e.target.checked)}
+                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 border-gray-300" 
+                        />
+                        <span className="ml-2 text-xs font-medium text-gray-600">Scheduler?</span>
+                    </label>
+                </div>
                 <div className="flex space-x-2">
                     {editingInstructorId && (
                         <button onClick={cancelEditInstructor} className="bg-gray-200 text-gray-700 px-3 py-2 rounded hover:bg-gray-300 font-medium" title="Cancel Edit">
@@ -362,7 +379,14 @@ const AdminSettings: React.FC<Props> = ({
                                 <td className="px-4 py-2 whitespace-nowrap text-sm font-bold text-gray-600">
                                     {inst.seniority ? `#${inst.seniority}` : '-'}
                                 </td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{inst.name}</td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {inst.name}
+                                    {inst.isScheduler && (
+                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-800" title="Scheduler Role">
+                                            <UserCog className="w-3 h-3 mr-1" /> Scheduler
+                                        </span>
+                                    )}
+                                </td>
                                 <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{inst.email}</td>
                                 <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
                                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${inst.type === 'Full-Time' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>

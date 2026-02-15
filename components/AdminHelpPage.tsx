@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HelpCircle, Upload, Users, CheckSquare, Settings, Shield } from 'lucide-react';
+import { HelpCircle, Upload, Users, CheckSquare, Settings, Shield, History, BookOpen } from 'lucide-react';
 
 const AdminHelpPage: React.FC = () => {
   return (
@@ -19,15 +19,16 @@ const AdminHelpPage: React.FC = () => {
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                 <Upload className="w-5 h-5 mr-2 text-blue-500" />
-                Getting Started (Import)
+                Getting Started (Import/Load)
             </h2>
             <p className="text-gray-600 text-sm mb-3">
-                Start by importing the previous year's schedule CSV. This creates your "template" for the current semester.
+                You can start your schedule by importing a CSV file or loading an archived schedule from a previous term.
             </p>
             <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
-                <li>Go to <strong>Master Schedule</strong>.</li>
-                <li>Click the <strong>Import</strong> button.</li>
-                <li>Select your CSV file. Faculty names are preserved to allow for "Same as Last Year" matching.</li>
+                <li>Go to <strong>Master Schedule</strong> dashboard.</li>
+                <li>Click <strong>Load / Import</strong> in the top right.</li>
+                <li><strong>System Archive:</strong> Select a previously finalized term (e.g., Fall 2024) to roll over data instantly.</li>
+                <li><strong>Upload File:</strong> Import a CSV from your Student Information System.</li>
                 <li>Imported sections appear in <span className="text-gray-500 italic">Gray/Italic</span> until they are confirmed or edited.</li>
             </ul>
         </div>
@@ -72,7 +73,8 @@ const AdminHelpPage: React.FC = () => {
                 Settings & Configuration
             </h2>
             <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
-                <li><strong>Master Admin:</strong> Set the School Name, Semester Title (e.g., Spring 2027), and Help Contact info globaly.</li>
+                <li><strong>Master Admin:</strong> Set the School Name, Semester Title (e.g., Spring 2027), and Help Contact info globally.</li>
+                <li><strong>Global Lists:</strong> Define valid Modalities, Campuses, and Textbook Cost options (e.g., OER/No Cost) in Master Admin.</li>
                 <li><strong>Admin Settings:</strong> Manage Courses, Rooms, Time Blocks, and Faculty lists specific to your department.</li>
                 <li><strong>Instructors:</strong> You can drag-and-drop instructors in the settings table to change their seniority rank.</li>
             </ul>

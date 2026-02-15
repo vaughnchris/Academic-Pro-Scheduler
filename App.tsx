@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
-import { INITIAL_SCHEDULE, MOCK_REQUESTS, INITIAL_COURSES, INITIAL_MODALITIES, INITIAL_CAMPUSES, INITIAL_ROOMS, INITIAL_INSTRUCTORS, TIME_BLOCKS, DEPARTMENTS } from './services/mockData';
-import { ClassSection, FacultyRequest, CourseOption, Instructor, EmailSettings, Department, PartitionedItem, SchoolConfig, GlobalOption } from './types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { INITIAL_SCHEDULE, MOCK_REQUESTS, INITIAL_COURSES, INITIAL_MODALITIES, INITIAL_CAMPUSES, INITIAL_ROOMS, INITIAL_INSTRUCTORS, TIME_BLOCKS, DEPARTMENTS, MOCK_ARCHIVED_SCHEDULES, INITIAL_TEXTBOOK_COSTS } from './services/mockData';
+import { ClassSection, FacultyRequest, CourseOption, Instructor, EmailSettings, Department, PartitionedItem, SchoolConfig, GlobalOption, ArchivedSchedule, SectionStatus } from './types';
 import Dashboard from './components/Dashboard';
 import FacultyForm from './components/FacultyForm';
 import AdminSettings from './components/AdminSettings';
@@ -12,77 +12,139 @@ import FacultyVerificationDashboard from './components/FacultyVerificationDashbo
 import FacultyScheduleView from './components/FacultyScheduleView';
 import MasterAdminSettings from './components/MasterAdminSettings';
 import AdminHelpPage from './components/AdminHelpPage';
+import ProductPage from './components/ProductPage';
 import { sortSchedule, generateFacultyEmail } from './utils/schedulerUtils';
-import { Calendar, FileText, Settings, Users, ChevronLeft, ChevronRight, LogOut, CheckSquare, LayoutDashboard, ShieldCheck, HelpCircle } from 'lucide-react';
+import { Calendar, FileText, Settings, Users, ChevronLeft, ChevronRight, LogOut, CheckSquare, ShieldCheck, HelpCircle, Database, AlertTriangle, Info, ChevronDown, ChevronUp } from 'lucide-react';
+
+// Firebase Services
+import { 
+  subscribeToCollection, 
+  subscribeToDoc, 
+  addDocument, 
+  updateDocument, 
+  deleteDocument, 
+  batchAddDocuments 
+} from './services/firebase';
 
 const App: React.FC = () => {
   // State for Navigation and Role
   const [userRole, setUserRole] = useState<'admin' | 'faculty' | null>(null);
   const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'settings' | 'requests' | 'instructions' | 'verification' | 'mySchedule' | 'masterSettings' | 'help'>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [viewingProduct, setViewingProduct] = useState(false);
+  const [sortCriterion, setSortCriterion] = useState<'course' | 'time' | 'room' | 'faculty' | 'status'>('course');
   
   // Faculty specific state for demo purposes (impersonation)
   const [currentFacultyId, setCurrentFacultyId] = useState<string>('');
 
-  // Global Configuration State (Master Admin)
-  const [schoolConfig, setSchoolConfig] = useState<SchoolConfig>({
+  // --- Data State (Synced via Firebase) ---
+  const [schoolConfig, setSchoolConfigState] = useState<SchoolConfig>({
       schoolName: 'AcademicPro University',
       scheduleTitle: 'Fall 2026',
       helpContactName: 'IT Support',
       helpContactEmail: 'help@academicpro.edu'
   });
 
-  // Department State
-  const [departments, setDepartments] = useState<Department[]>(DEPARTMENTS);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [allSchedule, setAllSchedule] = useState<ClassSection[]>([]);
+  const [allRequests, setAllRequests] = useState<FacultyRequest[]>([]);
+  const [allCourses, setAllCourses] = useState<CourseOption[]>([]);
+  const [allInstructors, setAllInstructors] = useState<Instructor[]>([]);
+  const [allArchivedSchedules, setAllArchivedSchedules] = useState<ArchivedSchedule[]>([]);
+  const [globalModalities, setGlobalModalities] = useState<GlobalOption[]>([]);
+  const [globalCampuses, setGlobalCampuses] = useState<GlobalOption[]>([]);
+  const [globalTextbookCosts, setGlobalTextbookCosts] = useState<GlobalOption[]>([]);
+  const [allRooms, setAllRooms] = useState<PartitionedItem[]>([]);
+  const [allTimeBlocks, setAllTimeBlocks] = useState<PartitionedItem[]>([]);
+  const [emailSettings, setEmailSettingsState] = useState<EmailSettings>({
+    individualSubject: '', individualBody: '', bulkSubject: '', bulkBody: ''
+  });
+
   const [activeDeptId, setActiveDeptId] = useState<string | null>(null);
 
-  // Global Lists State (All items with departmentId tag)
-  const [allSchedule, setAllSchedule] = useState<ClassSection[]>(INITIAL_SCHEDULE);
-  const [allRequests, setAllRequests] = useState<FacultyRequest[]>(MOCK_REQUESTS);
-  const [allCourses, setAllCourses] = useState<CourseOption[]>(INITIAL_COURSES);
-  const [allInstructors, setAllInstructors] = useState<Instructor[]>(INITIAL_INSTRUCTORS);
-  
-  // Institution-Wide Global Lists (No department partitioning)
-  const [globalModalities, setGlobalModalities] = useState<GlobalOption[]>(INITIAL_MODALITIES);
-  const [globalCampuses, setGlobalCampuses] = useState<GlobalOption[]>(INITIAL_CAMPUSES);
+  // --- Firebase Subscriptions ---
+  useEffect(() => {
+    // Collections
+    const unsubDepts = subscribeToCollection('departments', setDepartments);
+    const unsubSched = subscribeToCollection('schedule', setAllSchedule);
+    const unsubReqs = subscribeToCollection('requests', setAllRequests);
+    const unsubCourses = subscribeToCollection('courses', setAllCourses);
+    const unsubInsts = subscribeToCollection('instructors', setAllInstructors);
+    const unsubArchives = subscribeToCollection('archives', setAllArchivedSchedules);
+    
+    // Global Configs
+    const unsubMods = subscribeToCollection('globalModalities', setGlobalModalities);
+    const unsubCamps = subscribeToCollection('globalCampuses', setGlobalCampuses);
+    const unsubCosts = subscribeToCollection('globalTextbookCosts', setGlobalTextbookCosts);
+    const unsubRooms = subscribeToCollection('rooms', setAllRooms);
+    const unsubTimes = subscribeToCollection('timeBlocks', setAllTimeBlocks);
 
-  // Partitioned items (Rooms, TimeBlocks)
-  const [allRooms, setAllRooms] = useState<PartitionedItem[]>(INITIAL_ROOMS);
-  const [allTimeBlocks, setAllTimeBlocks] = useState<PartitionedItem[]>(TIME_BLOCKS);
+    // Single Documents
+    const unsubConfig = subscribeToDoc('settings', 'schoolConfig', (data) => {
+        if (data) setSchoolConfigState(data);
+        // Initialize defaults if missing in DB handled by form saves mostly
+    });
+    
+    const unsubEmail = subscribeToDoc('settings', 'emailSettings', (data) => {
+        if (data) setEmailSettingsState(data);
+        else {
+             // Set default email settings if not in DB yet
+             const defaults = {
+                individualSubject: `Action Required: Schedule Request`,
+                individualBody: `Dear {name},\n\nWe have not yet received your schedule preferences. Please visit the portal.\n\nThank you.`,
+                bulkSubject: `Reminder: Schedule Requests Due`,
+                bulkBody: `Faculty,\n\nThis is a friendly reminder to please submit your schedule preferences.\n\nThank you.`
+             };
+             setEmailSettingsState(defaults);
+        }
+    });
+
+    return () => {
+        unsubDepts(); unsubSched(); unsubReqs(); unsubCourses(); unsubInsts();
+        unsubArchives(); unsubMods(); unsubCamps(); unsubCosts(); unsubRooms(); unsubTimes();
+        unsubConfig(); unsubEmail();
+    };
+  }, []);
 
   // Filtered Data based on Active Department
   const activeDept = useMemo(() => departments.find(d => d.id === activeDeptId), [departments, activeDeptId]);
   
-  const schedule = useMemo(() => allSchedule.filter(s => s.departmentId === activeDeptId), [allSchedule, activeDeptId]);
+  // Sorted Schedule Logic
+  const schedule = useMemo(() => {
+      const filtered = allSchedule.filter(s => s.departmentId === activeDeptId);
+      return sortSchedule(filtered, sortCriterion);
+  }, [allSchedule, activeDeptId, sortCriterion]);
+
   const requests = useMemo(() => allRequests.filter(r => r.departmentId === activeDeptId), [allRequests, activeDeptId]);
   const courses = useMemo(() => allCourses.filter(c => c.departmentId === activeDeptId), [allCourses, activeDeptId]);
   const instructors = useMemo(() => allInstructors.filter(i => i.departmentId === activeDeptId), [allInstructors, activeDeptId]);
+  const archivedSchedules = useMemo(() => allArchivedSchedules.filter(a => a.departmentId === activeDeptId), [allArchivedSchedules, activeDeptId]);
   
-  // Derived simple arrays for child components that expect string[]
   const rooms = useMemo(() => allRooms.filter(r => r.departmentId === activeDeptId).map(r => r.value), [allRooms, activeDeptId]);
   const timeBlocks = useMemo(() => allTimeBlocks.filter(t => t.departmentId === activeDeptId).map(t => t.value), [allTimeBlocks, activeDeptId]);
   
-  // Global lists as string arrays for dropdowns
   const modalities = useMemo(() => globalModalities.map(m => m.value), [globalModalities]);
   const campuses = useMemo(() => globalCampuses.map(c => c.value), [globalCampuses]);
+  const textbookCosts = useMemo(() => globalTextbookCosts.map(t => t.value), [globalTextbookCosts]);
 
-  // Current logged in instructor object
   const currentInstructor = useMemo(() => instructors.find(i => i.id === currentFacultyId), [instructors, currentFacultyId]);
 
-  // Email Settings State
-  const [emailSettings, setEmailSettings] = useState<EmailSettings>({
-    individualSubject: `Action Required: ${schoolConfig.scheduleTitle} Schedule Request`,
-    individualBody: `Dear {name},\n\nWe have not yet received your schedule preferences for the ${schoolConfig.scheduleTitle} semester. Please visit the portal and submit your requests as soon as possible to ensure your preferences are considered.\n\nThank you,\nDepartment Schedule Developer`,
-    bulkSubject: `Reminder: ${schoolConfig.scheduleTitle} Schedule Requests Due`,
-    bulkBody: `Faculty,\n\nThis is a friendly reminder to please submit your schedule preferences for the ${schoolConfig.scheduleTitle} semester.\n\nThank you,\nDepartment Schedule Developer`
-  });
+  const validInstructors = useMemo(() => instructors.filter(i => i.name !== 'Staff'), [instructors]);
 
-  // --- Handlers for Data Updates ---
+  const areRequestsComplete = useMemo(() => {
+      if (validInstructors.length === 0) return false;
+      return validInstructors.every(i => requests.some(r => r.name === i.name));
+  }, [validInstructors, requests]);
+
+  const isVerificationComplete = useMemo(() => {
+      if (validInstructors.length === 0) return false;
+      return validInstructors.every(i => i.approvalStatus === 'Approved' || i.approvalStatus === 'Rejected');
+  }, [validInstructors]);
+
+  // --- Handlers for Data Updates (Writing to Firebase) ---
 
   const handleUpdateSection = (id: string, updates: Partial<ClassSection>) => {
-    setAllSchedule(prev => prev.map(section => 
-      section.id === id ? { ...section, ...updates } : section
-    ));
+    updateDocument('schedule', id, updates);
   };
 
   const handleAddSection = (newSection: Partial<ClassSection>) => {
@@ -105,9 +167,7 @@ const App: React.FC = () => {
         status: 'New', 
         ...newSection
     } as ClassSection;
-    
-    // Add to main array
-    setAllSchedule(prev => [...prev, section]);
+    addDocument('schedule', section);
   };
 
   const handleImportSchedule = (importedSections: ClassSection[]) => {
@@ -115,153 +175,129 @@ const App: React.FC = () => {
       
       const localizedSections = importedSections.map(s => ({
           ...s,
-          departmentId: activeDeptId
+          departmentId: activeDeptId!
       }));
 
-      // 1. Process for New Time Blocks
+      // 1. New Time Blocks
       const existingTimeBlocks = new Set(allTimeBlocks.filter(tb => tb.departmentId === activeDeptId).map(tb => tb.value));
       const newTimeBlocksToAdd: PartitionedItem[] = [];
-
       localizedSections.forEach(section => {
         if (section.beginTime && section.endTime) {
             const block = `${section.beginTime} - ${section.endTime}`;
             if (!existingTimeBlocks.has(block)) {
                 existingTimeBlocks.add(block);
-                newTimeBlocksToAdd.push({
-                    id: crypto.randomUUID(),
-                    departmentId: activeDeptId,
-                    value: block
-                });
+                newTimeBlocksToAdd.push({ id: crypto.randomUUID(), departmentId: activeDeptId!, value: block });
             }
         }
       });
+      if (newTimeBlocksToAdd.length > 0) batchAddDocuments('timeBlocks', newTimeBlocksToAdd);
 
-      if (newTimeBlocksToAdd.length > 0) {
-          setAllTimeBlocks(prev => [...prev, ...newTimeBlocksToAdd]);
-      }
-
-      // 2. Process for New Instructors
+      // 2. New Instructors
       const existingInstructors = new Set(allInstructors.filter(i => i.departmentId === activeDeptId).map(i => i.name));
       const newInstructorsToAdd: Instructor[] = [];
-
       localizedSections.forEach(section => {
           if (section.faculty && section.faculty !== 'Staff' && !existingInstructors.has(section.faculty)) {
               existingInstructors.add(section.faculty);
               newInstructorsToAdd.push({
                   id: crypto.randomUUID(),
-                  departmentId: activeDeptId,
+                  departmentId: activeDeptId!,
                   name: section.faculty,
-                  email: generateFacultyEmail(section.faculty), // Generate email pattern
-                  type: 'Part-Time', // Default to part-time if unknown
+                  email: generateFacultyEmail(section.faculty),
+                  type: 'Part-Time',
                   seniority: 99,
                   reminderCount: 0,
-                  approvalStatus: 'Pending'
+                  approvalStatus: 'Pending',
+                  isScheduler: false
               });
           }
       });
+      if (newInstructorsToAdd.length > 0) batchAddDocuments('instructors', newInstructorsToAdd);
 
-      if (newInstructorsToAdd.length > 0) {
-          setAllInstructors(prev => [...prev, ...newInstructorsToAdd]);
-      }
-
-      // 3. Process for New Rooms (Auto-populate from import)
+      // 3. New Rooms
       const existingRooms = new Set(allRooms.filter(r => r.departmentId === activeDeptId).map(r => r.value));
       const newRoomsToAdd: PartitionedItem[] = [];
-
       localizedSections.forEach(section => {
         if (section.room && section.room !== 'ONLINE' && section.room !== 'TBA' && !existingRooms.has(section.room)) {
             existingRooms.add(section.room);
-            newRoomsToAdd.push({
-                id: crypto.randomUUID(),
-                departmentId: activeDeptId,
-                value: section.room
-            });
+            newRoomsToAdd.push({ id: crypto.randomUUID(), departmentId: activeDeptId!, value: section.room });
         }
       });
+      if (newRoomsToAdd.length > 0) batchAddDocuments('rooms', newRoomsToAdd);
 
-      if (newRoomsToAdd.length > 0) {
-          setAllRooms(prev => [...prev, ...newRoomsToAdd]);
-      }
-
-      // 4. Process for New Courses (Auto-populate from import)
+      // 4. New Courses
       const existingCourses = new Set(allCourses.filter(c => c.departmentId === activeDeptId).map(c => c.code));
       const newCoursesToAdd: CourseOption[] = [];
-
       localizedSections.forEach(section => {
           if (section.subject && section.courseNumber) {
               const code = `${section.subject} ${section.courseNumber}`;
               if (!existingCourses.has(code)) {
                   existingCourses.add(code);
-                  newCoursesToAdd.push({
-                      id: crypto.randomUUID(),
-                      departmentId: activeDeptId,
-                      code: code,
-                      title: section.title
-                  });
+                  newCoursesToAdd.push({ id: crypto.randomUUID(), departmentId: activeDeptId!, code: code, title: section.title });
               }
           }
       });
+      if (newCoursesToAdd.length > 0) batchAddDocuments('courses', newCoursesToAdd);
 
-      if (newCoursesToAdd.length > 0) {
-          setAllCourses(prev => [...prev, ...newCoursesToAdd]);
-      }
+      // 5. Add Schedule Items
+      batchAddDocuments('schedule', localizedSections);
+  };
 
-      // 5. Replace Schedule
-      setAllSchedule(prev => {
-          const otherDepts = prev.filter(s => s.departmentId !== activeDeptId);
-          return [...otherDepts, ...localizedSections];
-      });
+  const handleLoadArchivedSchedule = (archiveId: string) => {
+      if (!activeDeptId) return;
+      const archive = allArchivedSchedules.find(a => a.id === archiveId);
+      if (!archive) return;
+
+      const newSections = archive.sections.map(s => ({
+          ...s,
+          id: crypto.randomUUID(),
+          departmentId: activeDeptId!,
+          status: SectionStatus.IMPORTED
+      }));
+
+      handleImportSchedule(newSections);
   };
 
   const handleSort = (criterion: 'course' | 'time' | 'room' | 'faculty' | 'status') => {
-    setAllSchedule(prev => sortSchedule(prev, criterion));
+    setSortCriterion(criterion);
   };
 
   const handleUpdateInstructor = (id: string, updates: Partial<Instructor>) => {
-    setAllInstructors(prev => prev.map(inst => 
-      inst.id === id ? { ...inst, ...updates } : inst
-    ));
+    updateDocument('instructors', id, updates);
   };
 
-  // Used for NEW submissions (Faculty Form View). Enforces one request per faculty.
   const handleRequestSubmit = (request: FacultyRequest) => {
     if (!activeDeptId) return;
     const taggedRequest = { ...request, departmentId: activeDeptId };
     
-    setAllRequests(prev => {
-        const filtered = prev.filter(r => r.name !== request.name); // Remove old request from same person (assuming name is unique key for now)
-        return [...filtered, taggedRequest];
-    });
+    // Check if updating existing
+    const existing = allRequests.find(r => r.id === request.id || (r.name === request.name && r.departmentId === activeDeptId));
     
+    if (existing) {
+        updateDocument('requests', existing.id, taggedRequest);
+    } else {
+        addDocument('requests', taggedRequest);
+    }
+
     if (userRole === 'admin') {
       setCurrentView('dashboard'); 
-    } else {
-        // Stay on form but show success? Already handled in form component alert.
     }
   };
 
-  // Used for Admin updates (Edit Mode). Updates by ID.
-  const handleAdminRequestUpdate = (updatedReq: FacultyRequest) => {
-      setAllRequests(prev => prev.map(r => r.id === updatedReq.id ? updatedReq : r));
-  };
-  
   const handleAdminRequestDelete = (id: string) => {
-      setAllRequests(prev => prev.filter(r => r.id !== id));
+    deleteDocument('requests', id);
   };
 
-  // --- Admin Settings Handlers (Partition Aware) ---
-  
   const handleAddCourse = (code: string, title: string) => {
     if (!activeDeptId) return;
-    setAllCourses(prev => [...prev, { id: crypto.randomUUID(), departmentId: activeDeptId, code, title }]);
+    addDocument('courses', { id: crypto.randomUUID(), departmentId: activeDeptId, code, title });
   };
   const handleRemoveCourse = (id: string) => {
-    setAllCourses(prev => prev.filter(c => c.id !== id));
+    deleteDocument('courses', id);
   };
 
   const handleAddInstructor = (inst: Partial<Instructor>) => {
       if (!activeDeptId) return;
-      setAllInstructors(prev => [...prev, {
+      addDocument('instructors', {
           id: crypto.randomUUID(),
           departmentId: activeDeptId,
           name: inst.name || '',
@@ -269,66 +305,71 @@ const App: React.FC = () => {
           type: inst.type || 'Full-Time',
           seniority: inst.seniority,
           reminderCount: 0,
-          approvalStatus: 'Pending'
-      }]);
+          approvalStatus: 'Pending',
+          isScheduler: inst.isScheduler || false
+      });
   };
-  const handleRemoveInstructor = (id: string) => setAllInstructors(prev => prev.filter(i => i.id !== id));
+  const handleRemoveInstructor = (id: string) => deleteDocument('instructors', id);
 
-  // Helper for simple partitioned items
-  const addPartitionedItem = (setter: React.Dispatch<React.SetStateAction<PartitionedItem[]>>, value: string) => {
+  // Partitioned Items
+  const handleAddTimeBlock = (val: string) => {
     if (!activeDeptId) return;
-    setter(prev => [...prev, { id: crypto.randomUUID(), departmentId: activeDeptId, value }]);
-  };
-  const removePartitionedItem = (setter: React.Dispatch<React.SetStateAction<PartitionedItem[]>>, value: string) => {
-    if (!activeDeptId) return;
-    setter(prev => prev.filter(item => !(item.departmentId === activeDeptId && item.value === value)));
+    addDocument('timeBlocks', { id: crypto.randomUUID(), departmentId: activeDeptId, value: val });
   };
   
-  // Specific handler to pass down
-  const handleAddTimeBlock = (val: string) => {
-      addPartitionedItem(setAllTimeBlocks, val);
+  const handleRemoveTimeBlock = (val: string) => {
+      const item = allTimeBlocks.find(t => t.departmentId === activeDeptId && t.value === val);
+      if (item) deleteDocument('timeBlocks', item.id);
+  };
+
+  const handleAddRoom = (val: string) => {
+      if (!activeDeptId) return;
+      addDocument('rooms', { id: crypto.randomUUID(), departmentId: activeDeptId, value: val });
+  };
+
+  const handleRemoveRoom = (val: string) => {
+      const item = allRooms.find(r => r.departmentId === activeDeptId && r.value === val);
+      if (item) deleteDocument('rooms', item.id);
   };
 
   const handleUpdateRoom = (oldVal: string, newVal: string) => {
       if (!activeDeptId) return;
-      // 1. Update Room List
-      setAllRooms(prev => prev.map(r => (r.departmentId === activeDeptId && r.value === oldVal) ? { ...r, value: newVal } : r));
-      // 2. Update Schedule references
-      setAllSchedule(prev => prev.map(s => (s.departmentId === activeDeptId && s.room === oldVal) ? { ...s, room: newVal } : s));
+      // Update room list
+      const roomItem = allRooms.find(r => r.departmentId === activeDeptId && r.value === oldVal);
+      if (roomItem) updateDocument('rooms', roomItem.id, { value: newVal });
+      
+      // Update schedule references
+      // Note: This is potentially expensive if done one by one on large schedule
+      // but fine for typical department size
+      const affectedSections = allSchedule.filter(s => s.departmentId === activeDeptId && s.room === oldVal);
+      affectedSections.forEach(s => updateDocument('schedule', s.id, { room: newVal }));
   };
 
-  // --- Global Lists Management (Master Admin) ---
-  const handleAddGlobalModality = (val: string) => {
-      setGlobalModalities(prev => [...prev, { id: crypto.randomUUID(), value: val }]);
-  };
-  const handleRemoveGlobalModality = (id: string) => {
-      setGlobalModalities(prev => prev.filter(m => m.id !== id));
-  };
+  // Global Config Handlers
+  const handleAddGlobalModality = (val: string) => addDocument('globalModalities', { id: crypto.randomUUID(), value: val });
+  const handleRemoveGlobalModality = (id: string) => deleteDocument('globalModalities', id);
 
-  const handleAddGlobalCampus = (val: string) => {
-      setGlobalCampuses(prev => [...prev, { id: crypto.randomUUID(), value: val }]);
-  };
-  const handleRemoveGlobalCampus = (id: string) => {
-      setGlobalCampuses(prev => prev.filter(c => c.id !== id));
-  };
+  const handleAddGlobalCampus = (val: string) => addDocument('globalCampuses', { id: crypto.randomUUID(), value: val });
+  const handleRemoveGlobalCampus = (id: string) => deleteDocument('globalCampuses', id);
 
-
-  // Role Selection Handler
-  const handleRoleSelect = (role: 'admin' | 'faculty', deptId: string) => {
-    setActiveDeptId(deptId);
-    setUserRole(role);
-    if (role === 'admin') {
-      setCurrentView('dashboard');
-    } else {
-      // Logic for faculty view selection needs to know WHO they are.
-      // For demo, we default to instructions, but UI will let them impersonate
-      setCurrentView('instructions');
-    }
-  };
-
+  const handleAddGlobalTextbookCost = (val: string) => addDocument('globalTextbookCosts', { id: crypto.randomUUID(), value: val });
+  const handleRemoveGlobalTextbookCost = (id: string) => deleteDocument('globalTextbookCosts', id);
+  
   const handleCreateDepartment = (name: string) => {
-    const newDept: Department = { id: `dept_${Date.now()}`, name };
-    setDepartments([...departments, newDept]);
+    addDocument('departments', { id: `dept_${Date.now()}`, name });
+  };
+
+  // Config Object Updates
+  const handleUpdateSchoolConfig = (newConfig: SchoolConfig) => {
+      updateDocument('settings', 'schoolConfig', newConfig);
+      setSchoolConfigState(newConfig); // Optimistic Update for UI responsiveness
+  };
+  
+  const handleUpdateEmailSettings = (newSettings: React.SetStateAction<EmailSettings>) => {
+      // Handle the functional update if passed from component
+      const value = newSettings instanceof Function ? newSettings(emailSettings) : newSettings;
+      updateDocument('settings', 'emailSettings', value);
+      setEmailSettingsState(value);
   };
 
   const handleLogout = () => {
@@ -338,6 +379,22 @@ const App: React.FC = () => {
     setCurrentFacultyId('');
   };
 
+  const handleRoleSelect = (role: 'admin' | 'faculty', deptId: string) => {
+    setUserRole(role);
+    setActiveDeptId(deptId);
+    if (role === 'admin') {
+      setCurrentView('dashboard');
+    } else {
+      setCurrentView('instructions');
+      setCurrentFacultyId('');
+    }
+  };
+
+  // 0. Advertising Page
+  if (viewingProduct) {
+    return <ProductPage onBack={() => setViewingProduct(false)} />;
+  }
+
   // 1. No Role Selected -> Landing Page
   if (!userRole) {
     return <LandingPage 
@@ -346,10 +403,11 @@ const App: React.FC = () => {
         departments={departments} 
         onSelectRole={handleRoleSelect} 
         onCreateDepartment={handleCreateDepartment}
+        onShowProduct={() => setViewingProduct(true)}
     />;
   }
 
-  // 2. Faculty Role -> Restricted View (No Sidebar)
+  // 2. Faculty Role
   if (userRole === 'faculty') {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -365,7 +423,6 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-4">
-              {/* Impersonation Dropdown for Demo purposes */}
               <select 
                 value={currentFacultyId}
                 onChange={e => setCurrentFacultyId(e.target.value)}
@@ -432,14 +489,15 @@ const App: React.FC = () => {
                     </button>
                     <FacultyForm 
                         departmentId={activeDeptId || ''}
+                        departmentName={activeDept?.name}
                         scheduleTitle={schoolConfig.scheduleTitle}
                         onSubmit={handleRequestSubmit} 
                         availableCourses={courses}
                         availableModalities={modalities}
                         availableCampuses={campuses}
+                        availableTextbookCosts={textbookCosts}
                         instructors={instructors}
                         availableTimes={timeBlocks}
-                        // Pre-fill if simulating a user (optional enhancement)
                         initialValues={currentInstructor ? {
                              id: '',
                              departmentId: activeDeptId || '',
@@ -472,10 +530,9 @@ const App: React.FC = () => {
     );
   }
 
-  // 3. Admin Role -> Full Dashboard with Sidebar
+  // 3. Admin Role
   return (
     <div className="flex h-screen bg-gray-100 font-sans">
-      {/* Sidebar Navigation */}
       <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-slate-900 text-white flex flex-col hidden md:flex transition-all duration-300 relative`}>
         <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -505,43 +562,40 @@ const App: React.FC = () => {
                 <Calendar className="w-6 h-6 flex-shrink-0" />
             </div>
             {!isSidebarCollapsed && <span className="ml-3 whitespace-nowrap overflow-hidden">Master Schedule</span>}
-            {isSidebarCollapsed && (
-                <div className="absolute left-16 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                    Master Schedule
-                </div>
-            )}
           </button>
 
           <button 
              onClick={() => setCurrentView('requests')}
              title="Faculty Requests"
-             className={`flex items-center w-full px-3 py-3 rounded-lg transition-colors group ${currentView === 'requests' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-slate-800'}`}
+             className={`flex items-center w-full px-3 py-3 rounded-lg transition-colors group ${
+                currentView === 'requests' 
+                    ? 'bg-blue-600 text-white' 
+                    : areRequestsComplete 
+                        ? 'text-emerald-400 hover:bg-slate-800 hover:text-emerald-300' 
+                        : 'text-gray-400 hover:bg-slate-800'
+             }`}
           >
             <div className={`flex items-center justify-center ${isSidebarCollapsed ? 'w-full' : ''}`}>
                 <Users className="w-6 h-6 flex-shrink-0" />
             </div>
             {!isSidebarCollapsed && <span className="ml-3 whitespace-nowrap overflow-hidden">Faculty Requests</span>}
-            {isSidebarCollapsed && (
-                <div className="absolute left-16 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                    Faculty Requests
-                </div>
-            )}
           </button>
           
           <button 
              onClick={() => setCurrentView('verification')}
              title="Verification"
-             className={`flex items-center w-full px-3 py-3 rounded-lg transition-colors group ${currentView === 'verification' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-slate-800'}`}
+             className={`flex items-center w-full px-3 py-3 rounded-lg transition-colors group ${
+                currentView === 'verification' 
+                    ? 'bg-blue-600 text-white' 
+                    : isVerificationComplete 
+                        ? 'text-emerald-400 hover:bg-slate-800 hover:text-emerald-300' 
+                        : 'text-gray-400 hover:bg-slate-800'
+             }`}
           >
             <div className={`flex items-center justify-center ${isSidebarCollapsed ? 'w-full' : ''}`}>
                 <CheckSquare className="w-6 h-6 flex-shrink-0" />
             </div>
             {!isSidebarCollapsed && <span className="ml-3 whitespace-nowrap overflow-hidden">Verification</span>}
-            {isSidebarCollapsed && (
-                <div className="absolute left-16 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                    Verification
-                </div>
-            )}
           </button>
 
           <div className="my-2 border-t border-slate-700"></div>
@@ -555,11 +609,6 @@ const App: React.FC = () => {
                 <FileText className="w-6 h-6 flex-shrink-0" />
             </div>
             {!isSidebarCollapsed && <span className="ml-3 whitespace-nowrap overflow-hidden">Faculty Form</span>}
-            {isSidebarCollapsed && (
-                <div className="absolute left-16 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                    Faculty Form
-                </div>
-            )}
           </button>
 
           <button 
@@ -571,15 +620,9 @@ const App: React.FC = () => {
                  <Settings className="w-6 h-6 flex-shrink-0" />
             </div>
             {!isSidebarCollapsed && <span className="ml-3 whitespace-nowrap overflow-hidden">Admin Settings</span>}
-            {isSidebarCollapsed && (
-                <div className="absolute left-16 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                    Admin Settings
-                </div>
-            )}
           </button>
         </nav>
         
-        {/* Bottom Area with Master Admin Links */}
         <div className="p-2 border-t border-slate-800 space-y-1">
              <button 
                 onClick={() => setCurrentView('help')}
@@ -615,11 +658,11 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-auto transition-all duration-300">
         {currentView === 'dashboard' && (
           <Dashboard 
             scheduleTitle={schoolConfig.scheduleTitle}
+            departmentName={activeDept?.name || 'Department'}
             schedule={schedule} 
             requests={requests}
             rooms={rooms}
@@ -634,6 +677,8 @@ const App: React.FC = () => {
             timeBlocks={timeBlocks}
             modalities={modalities}
             onAddTimeBlock={handleAddTimeBlock}
+            archivedSchedules={archivedSchedules}
+            onLoadArchivedSchedule={handleLoadArchivedSchedule}
           />
         )}
 
@@ -644,11 +689,13 @@ const App: React.FC = () => {
               courses={courses}
               modalities={modalities}
               campuses={campuses}
+              textbookCosts={textbookCosts}
               timeBlocks={timeBlocks}
               departmentId={activeDeptId || ''}
+              departmentName={activeDept?.name || 'Department'}
               scheduleTitle={schoolConfig.scheduleTitle}
               onAdd={handleRequestSubmit}
-              onUpdate={handleAdminRequestUpdate}
+              onUpdate={handleRequestSubmit}
               onDelete={handleAdminRequestDelete}
            />
         )}
@@ -672,11 +719,13 @@ const App: React.FC = () => {
             </button>
             <FacultyForm 
               departmentId={activeDeptId || ''}
+              departmentName={activeDept?.name}
               scheduleTitle={schoolConfig.scheduleTitle}
               onSubmit={handleRequestSubmit} 
               availableCourses={courses}
               availableModalities={modalities}
               availableCampuses={campuses}
+              availableTextbookCosts={textbookCosts}
               instructors={instructors}
               availableTimes={timeBlocks}
             />
@@ -686,35 +735,23 @@ const App: React.FC = () => {
         {currentView === 'settings' && (
           <div className="p-8">
              <AdminSettings 
-                // Global Settings
-                // scheduleTitle handled by Master Admin now
-
-                // Courses
                 courses={courses} 
                 onAddCourse={handleAddCourse}
                 onRemoveCourse={handleRemoveCourse}
-                
-                // Modalities/Campuses Removed from Admin Settings (Managed Globally)
-                
                 rooms={rooms} 
-                onAddRoom={(val) => addPartitionedItem(setAllRooms, val)}
-                onRemoveRoom={(val) => removePartitionedItem(setAllRooms, val)}
+                onAddRoom={handleAddRoom}
+                onRemoveRoom={handleRemoveRoom}
                 onUpdateRoom={handleUpdateRoom}
-
-                timeBlocks={timeBlocks} 
-                onAddTimeBlock={(val) => addPartitionedItem(setAllTimeBlocks, val)}
-                onRemoveTimeBlock={(val) => removePartitionedItem(setAllTimeBlocks, val)}
-
-                // Instructors
                 instructors={instructors} 
                 onAddInstructor={handleAddInstructor}
                 onUpdateInstructor={handleUpdateInstructor}
                 onRemoveInstructor={handleRemoveInstructor}
-
-                // Global Config
+                timeBlocks={timeBlocks} 
+                onAddTimeBlock={handleAddTimeBlock}
+                onRemoveTimeBlock={handleRemoveTimeBlock}
                 schedule={schedule} 
                 emailSettings={emailSettings} 
-                setEmailSettings={setEmailSettings}
+                setEmailSettings={handleUpdateEmailSettings}
              />
           </div>
         )}
@@ -722,13 +759,19 @@ const App: React.FC = () => {
         {currentView === 'masterSettings' && (
             <MasterAdminSettings 
                 config={schoolConfig}
-                onUpdate={setSchoolConfig}
+                onUpdate={handleUpdateSchoolConfig}
                 modalities={globalModalities}
                 onAddModality={handleAddGlobalModality}
                 onRemoveModality={handleRemoveGlobalModality}
                 campuses={globalCampuses}
                 onAddCampus={handleAddGlobalCampus}
                 onRemoveCampus={handleRemoveGlobalCampus}
+                textbookCosts={globalTextbookCosts}
+                onAddTextbookCost={handleAddGlobalTextbookCost}
+                onRemoveTextbookCost={handleRemoveGlobalTextbookCost}
+                departments={departments}
+                allInstructors={allInstructors}
+                onUpdateInstructor={handleUpdateInstructor}
             />
         )}
 

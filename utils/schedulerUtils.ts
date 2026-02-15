@@ -15,7 +15,7 @@ export const generateFacultyEmail = (name: string): string => {
   const firstNamePart = parts[1].trim();
   const firstInitial = firstNamePart.charAt(0).toLowerCase();
 
-  return `${lastName}.${firstInitial}@yosemite.edu`;
+  return `${lastName}${firstInitial}@yosemite.edu`;
 };
 
 export const parseTimeMinutes = (timeStr: string): number => {

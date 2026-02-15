@@ -1,8 +1,17 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { ClassSection, FacultyRequest } from "../types";
 
 // Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safety check: Don't crash if process.env.API_KEY is undefined at init
+const getAi = () => {
+  if (process.env.API_KEY) {
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return null;
+}
+
+const ai = getAi();
 
 export const askScheduleAssistant = async (
   question: string,
@@ -10,6 +19,10 @@ export const askScheduleAssistant = async (
   requests: FacultyRequest[]
 ): Promise<string> => {
   
+  if (!ai) {
+    return "Please configure your Gemini API Key in the .env file (API_KEY=...) to use the Smart Assistant.";
+  }
+
   // Construct context
   const context = `
     You are an expert Academic Scheduler Assistant helping a college professor.

@@ -90,6 +90,9 @@ export interface Instructor {
   approvalStatus: ApprovalStatus;
   approvalComment?: string; // Notes/Explanation for rejection
   approvalDate?: string;
+
+  // Role
+  isScheduler?: boolean;
 }
 
 // Helper types for simple lists that now need partitioning
@@ -103,6 +106,15 @@ export interface PartitionedItem {
 export interface GlobalOption {
   id: string;
   value: string;
+}
+
+// New type for Archived Schedules
+export interface ArchivedSchedule {
+  id: string;
+  departmentId: string;
+  termTitle: string; // e.g. "Fall 2025"
+  archivedDate: string;
+  sections: ClassSection[];
 }
 
 export interface EmailSettings {

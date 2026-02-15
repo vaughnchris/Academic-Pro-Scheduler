@@ -11,8 +11,10 @@ interface Props {
   courses: CourseOption[];
   modalities: string[];
   campuses: string[];
+  textbookCosts: string[]; // Added Prop
   timeBlocks: string[];
   departmentId: string;
+  departmentName: string;
   scheduleTitle: string;
   
   onAdd: (req: FacultyRequest) => void;
@@ -26,8 +28,10 @@ const FacultyRequestsList: React.FC<Props> = ({
     courses,
     modalities,
     campuses,
+    textbookCosts,
     timeBlocks,
     departmentId,
+    departmentName,
     scheduleTitle,
     onAdd,
     onUpdate,
@@ -69,11 +73,13 @@ const FacultyRequestsList: React.FC<Props> = ({
           <div className="p-8">
               <FacultyForm
                 departmentId={departmentId}
+                departmentName={departmentName}
                 scheduleTitle={scheduleTitle}
                 onSubmit={handleFormSubmit}
                 availableCourses={courses}
                 availableModalities={modalities}
                 availableCampuses={campuses}
+                availableTextbookCosts={textbookCosts}
                 instructors={instructors}
                 availableTimes={timeBlocks}
                 initialValues={editingRequest} // Will be undefined if Adding
@@ -226,8 +232,12 @@ const FacultyRequestsList: React.FC<Props> = ({
                                             <tr key={idx} className="hover:bg-gray-50">
                                                 <td className="px-3 py-2 text-sm font-bold text-gray-500 text-center">{pref.rank}</td>
                                                 <td className="px-3 py-2 text-sm text-gray-900 font-medium">{pref.classTitle}</td>
-                                                <td className="px-3 py-2 text-xs text-gray-600">{pref.daysAvailable.join(', ') || 'Any'}</td>
-                                                <td className="px-3 py-2 text-xs text-gray-600">{pref.timesAvailable.join(', ') || 'Any'}</td>
+                                                <td className="px-3 py-2 text-xs text-gray-600">
+                                                    {pref.modality === 'Online' ? <span className="text-gray-500 italic">Online</span> : (pref.daysAvailable.join(', ') || 'Any')}
+                                                </td>
+                                                <td className="px-3 py-2 text-xs text-gray-600">
+                                                    {pref.modality === 'Online' ? <span className="text-gray-500 italic">Online</span> : (pref.timesAvailable.join(', ') || 'Any')}
+                                                </td>
                                                 <td className="px-3 py-2 text-xs text-gray-600">{pref.campus || 'Any'}</td>
                                                 <td className="px-3 py-2 text-xs text-gray-600">{pref.textbookCost}</td>
                                                 <td className="px-3 py-2 text-xs text-gray-600">

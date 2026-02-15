@@ -1,14 +1,15 @@
 
 // ... imports ...
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { ClassSection, FacultyRequest, Instructor, EmailSettings, SectionStatus } from '../types';
+import { ClassSection, FacultyRequest, Instructor, EmailSettings, SectionStatus, ArchivedSchedule } from '../types';
 import ScheduleTable from './ScheduleTable';
 import SmartAssistant from './SmartAssistant';
 import DraggableFacultyList from './DraggableFacultyList';
-import { Upload, ArrowUpDown, Clock, MapPin, CheckCircle2, Mail, Send, X, User, TrendingUp, TrendingDown, Minus, Download, AlertCircle, ToggleLeft, ToggleRight, Sparkles, ListFilter } from 'lucide-react';
+import { Upload, ArrowUpDown, Clock, MapPin, CheckCircle2, Mail, Send, X, User, TrendingUp, TrendingDown, Minus, Download, AlertCircle, ToggleLeft, ToggleRight, Sparkles, ListFilter, History, FileUp } from 'lucide-react';
 import { parseScheduleCSV, exportScheduleToExcel, parseTimeMinutes, getDaySortValue } from '../utils/schedulerUtils';
 
 interface Props {
+  departmentName: string;
   scheduleTitle: string;
   schedule: ClassSection[];
   requests: FacultyRequest[];
@@ -24,11 +25,20 @@ interface Props {
   timeBlocks: string[];
   modalities: string[];
   onAddTimeBlock: (newBlock: string) => void;
+  // New props for archived schedules
+  archivedSchedules: ArchivedSchedule[];
+  onLoadArchivedSchedule: (scheduleId: string) => void;
 }
 
-const Dashboard: React.FC<Props> = ({ scheduleTitle, schedule, requests, rooms, instructors, onUpdateSection, onAddSection, onImportSchedule, onSort, onUpdateInstructor, isSidebarCollapsed, emailSettings, timeBlocks, modalities, onAddTimeBlock }) => {
+const Dashboard: React.FC<Props> = ({ 
+    departmentName, scheduleTitle, schedule, requests, rooms, instructors, 
+    onUpdateSection, onAddSection, onImportSchedule, onSort, onUpdateInstructor, 
+    isSidebarCollapsed, emailSettings, timeBlocks, modalities, onAddTimeBlock,
+    archivedSchedules, onLoadArchivedSchedule
+}) => {
   const [showAssistant, setShowAssistant] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(false); // New Load Modal State
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Resize State
@@ -187,10 +197,6 @@ const Dashboard: React.FC<Props> = ({ scheduleTitle, schedule, requests, rooms, 
   }, [isResizing, resize, stopResizing]);
 
   // Import Handler
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onImportSchedule) {
@@ -198,9 +204,8 @@ const Dashboard: React.FC<Props> = ({ scheduleTitle, schedule, requests, rooms, 
         reader.onload = (evt) => {
             const text = evt.target?.result as string;
             const sections = parseScheduleCSV(text, 'temp_id');
-            // We always import the faculty name (if present) so drag-and-drop matching works.
-            // Status starts as IMPORTED, so it won't count against load until confirmed.
             onImportSchedule(sections);
+            setShowLoadModal(false); // Close modal on successful import
         };
         reader.readAsText(file);
     }
@@ -281,7 +286,7 @@ const Dashboard: React.FC<Props> = ({ scheduleTitle, schedule, requests, rooms, 
       <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center flex-shrink-0 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{scheduleTitle} Schedule</h1>
-          <p className="text-sm text-gray-500">Department of Business & Computing</p>
+          <p className="text-sm text-gray-500">{departmentName}</p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
              
@@ -340,6 +345,7 @@ const Dashboard: React.FC<Props> = ({ scheduleTitle, schedule, requests, rooms, 
                 </button>
              </div>
              
+             {/* Hidden Input for File Upload (Triggered via Modal) */}
              <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -347,14 +353,17 @@ const Dashboard: React.FC<Props> = ({ scheduleTitle, schedule, requests, rooms, 
                 className="hidden" 
                 accept=".csv" 
              />
+             
+             {/* Load / Import Button */}
              <button 
-                onClick={handleImportClick}
+                onClick={() => setShowLoadModal(true)}
                 className="flex items-center px-3 py-2 bg-white border border-gray-200 rounded-md shadow-sm text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors ml-2"
-                title="Import Previous Year Schedule (CSV)"
+                title="Load Previous Semester"
              >
-                <Upload className="w-3.5 h-3.5 mr-2" />
-                Import
+                <History className="w-3.5 h-3.5 mr-2" />
+                Load / Import
             </button>
+
             <button 
                 onClick={handleExportClick}
                 className="flex items-center px-3 py-2 bg-green-600 text-white border border-green-700 rounded-md shadow-sm text-xs font-medium hover:bg-green-700 transition-colors"
@@ -482,7 +491,83 @@ const Dashboard: React.FC<Props> = ({ scheduleTitle, schedule, requests, rooms, 
       </div>
 
       {showAssistant && (
-        <SmartAssistant schedule={schedule} requests={requests} />
+        <SmartAssistant 
+            schedule={schedule} 
+            requests={requests}
+            onClose={() => setShowAssistant(false)}
+        />
+      )}
+
+      {/* Load / Import Modal */}
+      {showLoadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl animate-in fade-in zoom-in duration-200 overflow-hidden">
+                <div className="bg-blue-900 text-white p-5 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-lg font-bold">Load Previous Schedule</h2>
+                        <p className="text-sm text-blue-200">Start your semester by loading data from a previous term.</p>
+                    </div>
+                    <button onClick={() => setShowLoadModal(false)} className="text-blue-200 hover:text-white transition-colors">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Option 1: System Archive */}
+                    <div className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition-colors bg-gray-50 flex flex-col">
+                        <div className="flex items-center mb-4 text-blue-800">
+                            <History className="w-6 h-6 mr-2" />
+                            <h3 className="font-bold text-lg">System Archive</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-4 flex-1">
+                            Choose a finalized schedule from a previous semester stored in the system.
+                        </p>
+                        
+                        {archivedSchedules.length > 0 ? (
+                            <div className="space-y-2">
+                                {archivedSchedules.map(arch => (
+                                    <button
+                                        key={arch.id}
+                                        onClick={() => {
+                                            if(confirm(`Load ${arch.termTitle}? This will replace current data.`)) {
+                                                onLoadArchivedSchedule(arch.id);
+                                                setShowLoadModal(false);
+                                            }
+                                        }}
+                                        className="w-full flex justify-between items-center p-3 bg-white border border-gray-300 rounded-md hover:bg-blue-50 hover:border-blue-400 transition-all text-sm font-medium text-gray-700"
+                                    >
+                                        <span>{arch.termTitle}</span>
+                                        <span className="text-xs text-gray-400">{arch.sections.length} sections</span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-4 text-gray-400 text-sm italic border border-dashed border-gray-300 rounded">
+                                No archived schedules found.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Option 2: File Upload */}
+                    <div className="border border-gray-200 rounded-lg p-6 hover:border-green-300 transition-colors bg-gray-50 flex flex-col">
+                        <div className="flex items-center mb-4 text-green-700">
+                            <FileUp className="w-6 h-6 mr-2" />
+                            <h3 className="font-bold text-lg">Upload File</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-6 flex-1">
+                            Upload a CSV or Excel file exported from your student information system or previous spreadsheet.
+                        </p>
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full py-3 bg-white border border-green-600 text-green-700 font-bold rounded-lg hover:bg-green-600 hover:text-white transition-all shadow-sm flex items-center justify-center"
+                        >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Select CSV File
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
       )}
 
       {/* Faculty Status Modal */}
